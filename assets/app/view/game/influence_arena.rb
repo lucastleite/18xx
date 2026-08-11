@@ -16,7 +16,7 @@ module View
       # Base sizes (scale 1.0)
       BASE_CELL_SIZE = 45
       BASE_BORDER_WIDTH = 3
-      BASE_PANEL_WIDTH = 120
+      BASE_PANEL_WIDTH = 130
 
       ARENA_COLORS = {
         exp_3: '#e8940a',
@@ -175,8 +175,9 @@ module View
           h(:img, { attrs: { src: logo, width: logo_size.to_s, height: logo_size.to_s },
                     style: faction_logo_style }),
           h(:span, { style: { fontWeight: 'bold', fontSize: header_font_size } },
-            "#{faction.id} (#{total}/#{limit})#{diamonds}"),
-        ])
+            "#{faction.id} (#{total}/#{limit})"),
+          (h(:span, { style: { fontSize: header_font_size, marginLeft: '2px' } }, diamonds) if diamonds.length.positive?),
+        ].compact)
 
         corp_limit = @game.corporation_influence_limit
         op_order = @game.operating_order.map(&:id)
