@@ -2,6 +2,7 @@
 
 require 'view/game/actionable'
 require 'view/game/influence_arena'
+require 'view/game/market_regulation'
 require 'lib/settings'
 
 module View
@@ -55,6 +56,12 @@ module View
         # Show mini arena if step requests it (e.g., ChooseFactions in Frost 1831)
         if step.respond_to?(:show_arena?) && step.show_arena?
           children << h(InfluenceArena, game: @game, scale: 0.67)
+        end
+
+        # Show market regulation if step requests it (e.g., ChoosePriorityFaction)
+        if step.respond_to?(:show_market_regulation?) && step.show_market_regulation? &&
+           @game.respond_to?(:regulations)
+          children << h(MarketRegulation, game: @game)
         end
 
         h(:div, children)

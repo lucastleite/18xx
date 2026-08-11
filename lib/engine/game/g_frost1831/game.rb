@@ -14,6 +14,7 @@ require_relative 'step/buy_sell_par_shares'
 require_relative 'step/buy_train'
 require_relative 'step/choose_factions'
 require_relative 'step/choose_influence'
+require_relative 'step/choose_priority_faction'
 require_relative 'step/dividend'
 require_relative 'step/faction_dividend'
 require_relative 'step/home_token'
@@ -477,6 +478,7 @@ module Engine
             Engine::Step::SpecialTrack,
             GFrost1831::Step::ChooseInfluence,
             GFrost1831::Step::BuySellParShares,
+            GFrost1831::Step::ChoosePriorityFaction,
           ])
         end
 
@@ -1691,6 +1693,9 @@ module Engine
           @voting_rounds_remaining = 0
           @voting_proposer_index = 0
           @current_voting_regulation_id = nil
+          @chosen_priority_faction = nil # Set by priority player when government is neutral
+          @pending_priority_faction_choice = false
+          @priority_faction_chooser = nil
 
           # Give each faction its £500 treasury (per setup rules)
           # Also set unplaced tokens to show "5◆" via hex stub
@@ -1824,6 +1829,9 @@ module Engine
 
           @government_marker = [new_row, new_col]
           @log << "Government marker moves toward #{faction_display_name(faction_sym)}"
+
+          # Clear priority faction choice if government is no longer neutral
+          clear_priority_faction_choice! unless government_neutral?
         end
 
         def float_corporation(corporation)
@@ -2398,12 +2406,55 @@ module Engine
                     # Rotate to start with governing faction
                     idx = ARENA_CLOCKWISE_ORDER.index(governing_sym) || 0
                     ARENA_CLOCKWISE_ORDER.rotate(idx)
+                  elsif @chosen_priority_faction
+                    # Neutral but priority player has chosen
+                    idx = ARENA_CLOCKWISE_ORDER.index(@chosen_priority_faction) || 0
+                    ARENA_CLOCKWISE_ORDER.rotate(idx)
                   else
-                    # Neutral: priority player chooses (for now, use default order)
+                    # Neutral and no choice yet: use default order
                     ARENA_CLOCKWISE_ORDER
                   end
 
           order.map { |sym| @corporations.find { |c| c.id == sym } }.compact
+        end
+
+        def government_neutral?
+          row, col = @government_marker
+          [3, 4].include?(row) && [3, 4].include?(col)
+        end
+
+        def needs_priority_faction_choice?
+          # This is called during SR to check if choice is needed
+          # Don't activate during SR - only when explicitly triggered at end
+          false
+        end
+
+        def pending_priority_faction_choice
+          @pending_priority_faction_choice
+        end
+
+        def trigger_priority_faction_choice!(player)
+          @pending_priority_faction_choice = true
+          @priority_faction_chooser = player
+        end
+
+        def priority_faction_chooser
+          @priority_faction_chooser
+        end
+
+        def floated_factions
+          @corporations.select { |c| c.type == :faction && c.floated? }
+        end
+
+        def set_priority_faction!(faction_sym)
+          @chosen_priority_faction = faction_sym
+          @log << "#{@priority_faction_chooser.name} chooses #{faction_display_name(faction_sym)} as priority faction"
+          @pending_priority_faction_choice = false
+          @priority_faction_chooser = nil
+        end
+
+        def clear_priority_faction_choice!
+          @chosen_priority_faction = nil
         end
 
         def governing_faction_sym
