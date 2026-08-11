@@ -335,6 +335,15 @@ module Engine
         def end_game!(game_end_reason)
           return if @finished
 
+          # Skip final maintenance if game was manually ended
+          if game_end_reason == :manually_ended
+            @finished = true
+            @game_end_reason = game_end_reason
+            @manually_ended = true
+            store_player_info
+            return
+          end
+
           # If we're resuming after pre-turmoil window, skip the turmoil part
           unless @end_game_turmoil_done
             @log << '-- Final Maintenance --'
@@ -473,6 +482,12 @@ module Engine
 
         def clear_graph
           super
+          @no_blocking_graph&.clear
+        end
+
+        def clear_graph_for_entity(entity)
+          # Clear both graphs to ensure no stale cache when tokens are placed
+          @graph&.clear
           @no_blocking_graph&.clear
         end
 

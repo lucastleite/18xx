@@ -1745,6 +1745,13 @@ module Engine
         @graph
       end
 
+      # Graph used for tile laying connectivity checks
+      # By default same as graph_for_entity, but games can override
+      # (e.g., to ignore special train abilities that only apply to routes)
+      def tile_lay_graph_for_entity(entity)
+        graph_for_entity(entity)
+      end
+
       def token_graph_for_entity(_entity)
         @graph
       end

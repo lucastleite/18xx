@@ -55,7 +55,8 @@ module Engine
                   "(spends 1 influence from #{faction_display_name(faction_sym)})"
         end
 
-        # Corporations with ◆ trains use a no-blocking graph
+        # Corporations with ◆ trains use a no-blocking graph for ROUTES ONLY
+        # For tile laying, always use the normal blocking graph
         def graph_for_entity(entity)
           if entity.is_a?(Engine::Corporation) &&
              entity.type != :faction &&
@@ -64,6 +65,12 @@ module Engine
           else
             @graph
           end
+        end
+
+        # For tile laying, always use the normal graph (tokens block)
+        # Diamond trains only bypass blocking for running routes, not for laying track
+        def tile_lay_graph_for_entity(_entity)
+          @graph
         end
 
         # Diamond trains can bypass cities blocked by supported factions
