@@ -493,6 +493,11 @@ module Engine
           @no_blocking_graph&.clear
         end
 
+        # Expose reorder_players publicly for use by Stock round
+        def reorder_players(order = nil, log_player_order: false, silent: false)
+          super
+        end
+
         def operating_round(round_num)
           Engine::Round::Operating.new(self, [
             GFrost1831::Step::PreTurmoilInfluence,
