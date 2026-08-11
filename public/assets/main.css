@@ -289,6 +289,9 @@ nav#game_menu {
   text-align: right;
   padding-right: 0.5em;
 }
+.hover_row:hover {
+  background-color: rgba(0,0,0,0.07);
+}
 
 text.number {
   font-size: 21px;

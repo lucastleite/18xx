@@ -207,6 +207,17 @@ module View
         if (@diff_corp_sizes = @game.all_corporations.any? { |c| @game.corporation_size(c) != :small })
           extra << h(:th, render_sort_link('Size', :corp_size))
         end
+        @game.spreadsheet_extra_headers.each do |hdr|
+          if hdr.is_a?(Hash)
+            if hdr[:sort_key]
+              extra << h(:th, render_sort_link(hdr[:title], hdr[:sort_key]))
+            else
+              extra << h(:th, hdr[:title])
+            end
+          else
+            extra << h(:th, hdr)
+          end
+        end
         @extra_size = extra.size
 
         connection_run_header = @game.respond_to?(:connection_run) ? [h(:th, th_props[1, false], '')] : []
@@ -439,6 +450,12 @@ module View
                 _turn, _round, c_run = @game.connection_run[corporation]
                 c_run&.revenue || 0
               end
+            when ->(k) { k.is_a?(Symbol) && k.to_s.start_with?('extra_') }
+              if @game.respond_to?(:spreadsheet_extra_sort_value)
+                @game.spreadsheet_extra_sort_value(corporation, @spreadsheet_sort_by)
+              else
+                0
+              end
             else
               p = @game.player_by_id(@spreadsheet_sort_by)
               n = p&.num_shares_of(corporation)
@@ -518,6 +535,9 @@ module View
           end
         end
         extra << h(:td, @game.corporation_size_name(corporation)) if @diff_corp_sizes
+        @game.spreadsheet_extra_data(corporation).each do |val|
+          extra << h(:td, val)
+        end
 
         n_ipo_shares = num_ipo_shares(corporation)
         n_market_shares = num_shares_of(@game.share_pool, corporation)
@@ -596,7 +616,8 @@ module View
           }
           props[:style][:minWidth] = min_width(entity)
         end
-        h(:td, props, entity.companies.map(&:sym).join(', '))
+        companies = @game.companies_sort(entity.companies)
+        h(:td, props, companies.map(&:sym).join(', '))
       end
 
       def render_player_companies

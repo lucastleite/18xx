@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
 require 'view/game/actionable'
+require 'view/game/influence_arena'
+require 'lib/settings'
 
 module View
   module Game
     class Choose < Snabberb::Component
       include Actionable
+      include Lib::Settings
 
       needs :entity, default: nil
 
@@ -27,7 +30,38 @@ module View
 
         return render_choice_amount(choices) if choice_is_amount
 
-        choice_buttons = choices.map do |choice, label|
+        # Check if we should use faction icons instead of buttons
+        use_icons = step.respond_to?(:use_faction_icons?) && step.use_faction_icons?
+
+        children = []
+
+        # Header text (without bold for consistency)
+        if step.choice_name
+          children << h(:div, { style: { marginTop: '0.5rem', marginBottom: '0.3rem' } }, step.choice_name)
+        end
+
+        # Render choices as icons or buttons
+        if use_icons
+          children << render_faction_icons(choices)
+        else
+          children << render_choice_buttons(choices)
+        end
+
+        if step.respond_to?(:choice_explanation) && (explanation = step.choice_explanation)
+          paragraphs = explanation.map { |text_block| h(:p, text_block) }
+          children << h(:div, { style: { marginTop: '0.5rem' } }, paragraphs)
+        end
+
+        # Show mini arena if step requests it (e.g., ChooseFactions in Frost 1831)
+        if step.respond_to?(:show_arena?) && step.show_arena?
+          children << h(InfluenceArena, game: @game, scale: 0.67)
+        end
+
+        h(:div, children)
+      end
+
+      def render_choice_buttons(choices)
+        buttons = choices.map do |choice, label|
           label ||= choice
           process_choose = lambda do
             choose = lambda do
@@ -53,15 +87,31 @@ module View
           h('button', props, label)
         end
 
-        children = []
-        div_class = choice_buttons.size < 5 ? '.inline' : ''
-        children << h("div#{div_class}", { style: { marginTop: '0.5rem' } }, "#{step.choice_name}: ") if step.choice_name
-        children << h(:div, choice_buttons)
-        if step.respond_to?(:choice_explanation) && (explanation = step.choice_explanation)
-          paragraphs = explanation.map { |text_block| h(:p, text_block) }
-          children << h(:div, { style: { marginTop: '0.5rem' } }, paragraphs)
-        end
-        h(:div, children)
+        h(:div, buttons)
+      end
+
+      def render_faction_icons(choices)
+        icons = choices.map do |choice, _label|
+          faction = @game.corporations.find { |c| c.id == choice }
+          next unless faction
+
+          process_choose = lambda do
+            process_action(Engine::Action::Choose.new(
+              @game.current_entity,
+              choice: choice,
+            ))
+          end
+
+          logo = setting_for(:simple_logos, @game) ? faction.simple_logo : faction.logo
+
+          h(:img, {
+            attrs: { src: logo, width: '48', height: '48', title: faction.name },
+            style: { cursor: 'pointer', marginRight: '0.5rem' },
+            on: { click: process_choose },
+          })
+        end.compact
+
+        h(:div, { style: { display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' } }, icons)
       end
 
       def render_choice_amount(amounts)

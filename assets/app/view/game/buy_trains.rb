@@ -283,6 +283,23 @@ module View
           end
         end
 
+        # Game-specific extra train exchanges (e.g. upgrades, conversions)
+        if @step.respond_to?(:extra_train_exchanges)
+          exchanges = @step.extra_train_exchanges(@corporation)
+          if exchanges.any?
+            children << h(:h3, 'Upgrade Trains') unless discountable_trains.any?
+            exchanges.each do |exchange|
+              action = lambda do
+                process_action(Engine::Action::Choose.new(@corporation, choice: exchange[:choice]))
+              end
+              children << h(:div, [
+                "#{exchange[:from]} → #{exchange[:to]} ",
+                h('button.no_margin', { on: { click: action } }, exchange[:label]),
+              ])
+            end
+          end
+        end
+
         children << h(:h3, 'Remaining Trains')
         children << remaining_trains
 

@@ -23,6 +23,7 @@ require 'view/game/combined_trains'
 require 'view/game/buy_token'
 require 'view/game/corporate_buy_companies'
 require 'view/game/corporate_sell_companies'
+require 'view/game/influence_choice'
 
 module View
   module Game
@@ -58,11 +59,21 @@ module View
           left << h(ReassignTrains) if @current_actions.include?('reassign_trains')
           left << h(DoubleHeadTrains) if @current_actions.include?('double_head_trains')
           left << h(CombinedTrains) if @current_actions.include?('combined_trains')
-          left << h(Choose) if @current_actions.include?('choose')
+          if @current_actions.include?('choose') && !@step.respond_to?(:faction_options_for_hex)
+            if @game.respond_to?(:pending_influence_choice) && @game.pending_influence_choice
+              left << h(InfluenceChoice)
+            elsif @game.respond_to?(:pre_turmoil_window) && @game.pre_turmoil_window
+              left << h(InfluenceChoice)
+            else
+              left << h(Choose)
+            end
+          end
           left << h(BuyToken, entity: entity) if @current_actions.include?('buy_token')
 
           if @current_actions.include?('buy_train') || @current_actions.include?('sell_train')
             left << h(IssueShares) if @current_actions.include?('sell_shares') || @current_actions.include?('buy_shares')
+            left << h(BuyTrains)
+          elsif @current_actions.include?('choose') && @step.respond_to?(:diamond_upgrades_allowed?)
             left << h(BuyTrains)
           elsif @current_actions.include?('buy_power')
             left << h(IssueShares) if @current_actions.include?('sell_shares')
@@ -98,7 +109,10 @@ module View
           if entity.player?
             left << h(Player, player: entity, game: @game)
           elsif entity.operator? && entity.floated?
-            left << h(Corporation, corporation: entity)
+            left << h(Corporation, corporation: entity) unless @game.respond_to?(:pending_influence_choice) && @game.pending_influence_choice
+            if entity.type == :faction && @game.respond_to?(:faction_action_cost_chart)
+              left << render_faction_cost_table
+            end
             if @step.respond_to?(:show_other) && @step.show_other
               Array(@step.show_other).each { |other_corporation| left << h(Corporation, corporation: other_corporation) }
             end
@@ -149,6 +163,11 @@ module View
             style: {
               overflow: 'hidden',
               verticalAlign: 'top',
+              flexGrow: '1',
+              flexShrink: '1',
+              flexBasis: 'auto',
+              minWidth: '300px',
+              maxWidth: '430px',
             },
           }
 
@@ -156,15 +175,51 @@ module View
             style: {
               maxWidth: '100%',
               width: 'max-content',
+              flexShrink: '0',
+            },
+          }
+
+          # Use flex container that wraps - when map doesn't fit, it goes below and left expands
+          container_props = {
+            style: {
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '1rem',
             },
           }
 
           children = [
-            h('div#left.inline-block', left_props, left),
-            h('div#right.inline-block', right_props, right),
+            h('div#left', left_props, left),
+            h('div#right', right_props, right),
           ]
 
-          h(:div, children)
+          h(:div, container_props, children)
+        end
+        def render_faction_cost_table
+          header, *rows = @game.faction_action_cost_chart
+
+          table_rows = rows.map do |r|
+            h('tr.hover_row', [
+              h(:td, r[0]),
+              h('td.padded_number', r[1]),
+            ])
+          end
+
+          table_props = {
+            style: {
+              margin: '1rem 0',
+            },
+          }
+
+          h(:table, table_props, [
+            h(:thead, [
+              h(:tr, [
+                h(:th, header[0]),
+                h(:th, header[1]),
+              ]),
+            ]),
+            h(:tbody, table_rows),
+          ])
         end
       end
     end

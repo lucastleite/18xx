@@ -138,6 +138,9 @@ module View
           h(Game::Tools, game: @game, game_data: @game_data, user: @user)
         when 'auto'
           h(Game::Auto, game: @game, game_data: @game_data, user: @user)
+        else
+          tab = @game.extra_game_tabs.find { |t| t[:anchor] == route_anchor }
+          h(tab[:klass], game: @game) if tab
         end
       LOGGER.debug do
         "Done rendering game view: #{Time.now - @_logger[:render]} seconds"
@@ -303,6 +306,9 @@ module View
             button_click('hist_' + key)
             event.preventDefault
           end
+        else
+          tab = @game&.extra_game_tabs&.find { |t| t[:key] == key }
+          change_anchor("##{tab[:anchor]}") if tab
         end
       end
     end
@@ -361,6 +367,7 @@ module View
       menu_items = []
       menu_items << item('G|ame', '')
       menu_items << item('E|ntities', '#entities')
+      @game.extra_game_tabs.each { |tab| menu_items << item(tab[:title], "##{tab[:anchor]}") }
       menu_items << item('M|ap', '#map') unless @game.layout == :none
       menu_items << item('Mark|et', '#market')
       menu_items << item('I|nfo', '#info')
@@ -450,7 +457,9 @@ module View
           h(Game::Round::Stock, game: @game)
         end
       when Engine::Round::Operating
-        if current_entity_actions.include?('merge')
+        if @round.respond_to?(:favor_mode) && @round.favor_mode
+          h(Game::Round::Favor, game: @game)
+        elsif current_entity_actions.include?('merge')
           h(Game::Round::Merger, game: @game)
         elsif current_entity_actions.include?('buy_shares') && @game.current_entity&.player?
           h(Game::Round::Stock, game: @game)
@@ -460,7 +469,11 @@ module View
           h(Game::Round::Operating, game: @game)
         end
       when Engine::Round::Choices
-        h(Game::Round::Choices, game: @game)
+        if @round.respond_to?(:voting?) && @round.voting?
+          h(Game::Round::Voting, game: @game)
+        else
+          h(Game::Round::Choices, game: @game)
+        end
       when Engine::Round::Auction,
            Engine::Round::Draft
         h(Game::Round::Auction, game: @game, user: @user)
@@ -493,13 +506,15 @@ module View
       children << h(Game::HistoryAndUndo, last_action_id: @last_action_id)
       children << h(Game::EntityOrder, round: @round)
       unless @game.finished
-        children << h(Game::Abilities, user: @user, game: @game)
+        children << h(Game::Abilities, user: @user, game: @game) unless @round.respond_to?(:favor_mode) && @round.favor_mode
         children << h(Game::Help, game: @game)
-        children << if @game.round.unordered? && hotseat_or_master
-                      h(Game::MasterPass)
-                    else
-                      h(Game::Pass, actions: current_entity_actions)
-                    end
+        unless @round.respond_to?(:favor_mode) && @round.favor_mode
+          children << if @game.round.unordered? && hotseat_or_master
+                        h(Game::MasterPass)
+                      else
+                        h(Game::Pass, actions: current_entity_actions)
+                      end
+        end
       end
       children << render_action
 

@@ -121,7 +121,7 @@ module Engine
           raise GameError, "#{old_tile.name} is not upgradeable to #{tile.name}"
         end
         if !@game.loading && !legal_tile_rotation?(entity_or_entities, hex, tile)
-          raise GameError, "#{old_tile.name} is not legally rotated for #{tile.name}"
+          raise GameError, "#{hex.tile.name} is not legally rotated for #{tile.name}"
         end
 
         update_tile_lists(tile, old_tile)
@@ -456,6 +456,7 @@ module Engine
       def old_paths_maintained?(hex, tile)
         old_paths = hex.tile.paths
         new_paths = tile.paths
+
         old_paths.all? { |path| new_paths.any? { |p| path <= p } }
       end
 

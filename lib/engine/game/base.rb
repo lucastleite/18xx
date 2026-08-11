@@ -1089,6 +1089,10 @@ module Engine
         self.class::LAYOUT
       end
 
+      def extra_game_tabs
+        []
+      end
+
       def axes
         @axes ||=
           if (axes = self.class::AXES)
@@ -3291,6 +3295,22 @@ module Engine
       end
 
       def corporation_size_name(_entity); end
+
+      def spreadsheet_extra_headers
+        []
+      end
+
+      def spreadsheet_extra_data(_corporation)
+        []
+      end
+
+      def phase_extra_headers
+        []
+      end
+
+      def phase_extra_data(_phase)
+        []
+      end
 
       def company_status_str(_company); end
 

@@ -5,6 +5,7 @@ require 'view/game/bank'
 require 'view/game/buy_sell_shares'
 require 'view/game/company'
 require 'view/game/corporation'
+require 'view/game/map'
 require 'view/game/par'
 require 'view/game/par_chart'
 require 'view/game/players'
@@ -13,6 +14,7 @@ require 'view/game/stock_market'
 require 'view/game/tranches'
 require 'view/game/bid'
 require 'view/game/ipo_rows'
+require 'view/game/influence_choice'
 
 module View
   module Game
@@ -63,17 +65,34 @@ module View
           children = []
 
           children.concat(render_bankruptcy) if @current_actions.include?('bankrupt')
-          children << h(Choose) if @current_actions.include?('choose') && @step.choice_available?(@current_entity)
+          if @current_actions.include?('choose') && @step.choice_available?(@current_entity)
+            if @game.respond_to?(:pending_influence_choice) && @game.pending_influence_choice
+              children << h(InfluenceChoice)
+              return h(:div, children)
+            elsif @game.respond_to?(:pre_turmoil_window) && @game.pre_turmoil_window
+              children << h(InfluenceChoice)
+            elsif @game.respond_to?(:pending_intervention) && @game.pending_intervention
+              # Intervention during Stock Round - show map for clicking
+              corp = @game.pending_intervention
+              children << h(Corporation, corporation: corp)
+              children << h(Map, game: @game)
+              return h(:div, children)
+            else
+              children << h(Choose)
+            end
+          end
           children << h(FlexibleBuy) if @current_actions.include?('buy_shares') && @flexible_player
 
           if @step.respond_to?(:must_sell?) && @step.must_sell?(@current_entity)
             children << if @game.num_certs(@current_entity) > @game.cert_limit(@current_entity)
                           h('div.margined', 'Must sell stock: above certificate limit')
                         elsif @step.respond_to?(:must_sell_corporations)
-                          corps_over_limit = @step.must_sell_corporations(@current_entity).map(&:name).join(', ')
-                          h('div.margined', "Must sell stock: above 60% limit in #{corps_over_limit}")
+                          corps = @step.must_sell_corporations(@current_entity)
+                          limit = corps.first&.max_ownership_percent || 60
+                          corps_over_limit = corps.map(&:name).join(', ')
+                          h('div.margined', "Must sell stock: above #{limit}% limit in #{corps_over_limit}")
                         else
-                          h('div.margined', 'Must sell stock: above 60% limit in corporation(s)')
+                          h('div.margined', 'Must sell stock: above ownership limit in corporation(s)')
                         end
           end
 

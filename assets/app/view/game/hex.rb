@@ -3,6 +3,7 @@
 require 'lib/hex'
 require 'lib/settings'
 require 'lib/tile_selector'
+require 'lib/intervention_selector'
 require 'view/game/actionable'
 require 'view/game/runnable'
 require 'view/game/tile'
@@ -228,6 +229,20 @@ module View
               cost: step.token_cost_override(@entity, @hex, nil, @entity.find_token_by_type(next_token&.to_sym)),
               token_type: next_token
             ))
+          end
+          if @actions.include?('choose') && step.respond_to?(:faction_options_for_hex)
+            factions = step.faction_options_for_hex(@hex)
+            if factions.size == 1
+              # Auto-resolve: only 1 faction can go here
+              return process_action(Engine::Action::Choose.new(
+                @entity,
+                choice: "#{@hex.name}:#{factions.first.id}",
+              ))
+            elsif factions.size > 1
+              # Open radial selector with faction options
+              return store(:tile_selector,
+                           Lib::InterventionSelector.new(@hex, coordinates, factions))
+            end
           end
           if @actions.include?('choose') && step.choices.include?(@hex.id)
             return process_action(Engine::Action::Choose.new(
