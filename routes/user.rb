@@ -173,6 +173,7 @@ class Api
   # itself errors it fails closed in production, open elsewhere.
   def verify_turnstile!
     return if ENV['RACK_ENV'] == 'test'
+    return if ENV['SKIP_TURNSTILE']
 
     token = request.params['cf_turnstile_response'].to_s
     halt(400, 'Please complete the captcha') if token.empty?
