@@ -28,14 +28,15 @@ module Engine
 
             @finish_round_processed = true
 
-            # Check if we need priority faction choice BEFORE calling super
-            # Calculate the priority player manually using last_to_act
+            # Reorder players BEFORE checking for priority faction choice
+            # This way the priority deal is set based on SR actions,
+            # not affected by the faction choice (which is between SR and VR)
+            @game.reorder_players
+
+            # Check if we need priority faction choice
             if should_trigger_priority_faction_choice?
-              # Calculate who has priority: player after last_to_act
-              players = @game.players.reject(&:bankrupt)
-              last_to_act = @last_to_act
-              priority_idx = last_to_act ? (players.index(last_to_act) + 1) % players.size : 0
-              priority_player = players[priority_idx]
+              # Priority player is now the first in the reordered list
+              priority_player = @game.players.reject(&:bankrupt).first
               @game.trigger_priority_faction_choice!(priority_player)
             end
 

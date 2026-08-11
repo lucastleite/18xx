@@ -592,7 +592,8 @@ module Engine
             case @round
             when GFrost1831::Round::Stock
               @operating_rounds = @phase.operating_rounds
-              reorder_players
+              # reorder_players is now called in Stock::finish_round
+              # before priority faction choice trigger
               if parliament_open? && faction_voting_order.any?
                 new_voting_round
               else
