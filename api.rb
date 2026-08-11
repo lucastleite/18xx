@@ -126,8 +126,8 @@ class Api < Roda
   route do |r|
     unless PRODUCTION
       r.assets
-      r.public
     end
+    r.public
 
     r.hash_branches
 
@@ -149,6 +149,28 @@ class Api < Roda
 
       user.verify!
       r.redirect('/login?verified=1')
+    end
+
+    # TEMPORARY: manual email verification bypass for users who are not receiving
+    # the verification email (Cloudflare blocking). Accepts user ID, username or
+    # email as identifier. Remove this endpoint before merging to the official
+    # upstream repo.
+    r.get 'enable', String do |identifier|
+      target_user =
+        if identifier.match?(/\A\d+\z/)
+          User[identifier.to_i]
+        elsif identifier.include?('@')
+          User.by_email(identifier)
+        else
+          User[Sequel.function(:lower, :name) => identifier.downcase]
+        end
+
+      halt(404, 'User not found') unless target_user
+
+      target_user.settings['verified'] = true
+      target_user.save
+
+      { result: true, id: target_user.id, name: target_user.name }
     end
 
     r.on 'profile' do

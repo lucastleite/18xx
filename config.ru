@@ -5,6 +5,9 @@ if ENV['RACK_ENV'] == 'production'
   require 'unicorn/worker_killer'
   use Unicorn::WorkerKiller::MaxRequests, 12_288, 16_448
   use Unicorn::WorkerKiller::Oom, (384 * (1024**2)), (512 * (1024**2))
+  use Rack::Static, urls: ['/assets', '/images', '/logos', '/icons', '/pinned'],
+                    root: 'public',
+                    header_rules: [[:all, { 'cache-control' => 'public, max-age=31536000' }]]
 end
 
 # In development, Rack::Lint is active and rejects capitalized response header
