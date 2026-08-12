@@ -493,6 +493,12 @@ module Engine
           @no_blocking_graph&.clear
         end
 
+        # DEBUG: Override init_graph to include home_as_token
+        def init_graph
+          puts "[DEBUG][init_graph] Creating graph with home_as_token: true"
+          Graph.new(self, home_as_token: true)
+        end
+
         # Expose reorder_players publicly for use by Stock round
         def reorder_players(order = nil, log_player_order: false, silent: false)
           super

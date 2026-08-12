@@ -97,7 +97,11 @@ module Engine
 
     def connected_hexes(corporation)
       compute(corporation) unless @connected_hexes[corporation]
-      @connected_hexes[corporation]
+      result = @connected_hexes[corporation]
+      puts "[DEBUG][Graph.connected_hexes] corporation: #{corporation&.name}"
+      puts "[DEBUG]   result size: #{result&.size}"
+      puts "[DEBUG]   hexes: #{result&.keys&.map(&:name)&.join(', ')}"
+      result
     end
 
     def connected_nodes(corporation)

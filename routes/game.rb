@@ -126,14 +126,55 @@ class Api
 
                 game.save
               else
+                puts "[DEBUG] ========== ACTION REQUEST =========="
+                puts "[DEBUG] Game ID: #{game.id}"
+                puts "[DEBUG] Action params: #{r.params.inspect}"
+                
                 engine = Engine::Game.load(game, actions: actions_h(game))
                 prev = acting_users(engine, users)
 
                 r.params['user'] = user.id
 
+                # Debug info antes de processar
+                if r.params['type'] == 'lay_tile'
+                  hex_id = r.params['hex']
+                  tile_name = r.params['tile']
+                  rotation = r.params['rotation']
+                  entity_id = r.params['entity']
+                  
+                  puts "[DEBUG] LAY_TILE action detected"
+                  puts "[DEBUG]   hex: #{hex_id}, tile: #{tile_name}, rotation: #{rotation}, entity: #{entity_id}"
+                  
+                  entity = engine.corporation_by_id(entity_id) || engine.company_by_id(entity_id)
+                  puts "[DEBUG]   entity found: #{entity&.name}"
+                  
+                  hex = engine.hex_by_id(hex_id)
+                  puts "[DEBUG]   hex found: #{hex&.name}, current tile: #{hex&.tile&.name}"
+                  puts "[DEBUG]   hex tile color: #{hex&.tile&.color}"
+                  puts "[DEBUG]   hex tile cities: #{hex&.tile&.cities&.map { |c| { slots: c.slots, tokens: c.tokens.map { |t| t&.corporation&.name } } }}"
+                  
+                  if entity&.corporation?
+                    graph = engine.tile_lay_graph_for_entity(entity)
+                    connected = graph.connected_hexes(entity)
+                    puts "[DEBUG]   connected_hexes count: #{connected.size}"
+                    puts "[DEBUG]   hex in connected_hexes? #{connected.key?(hex)}"
+                    puts "[DEBUG]   connected_hexes[hex]: #{connected[hex]}"
+                    
+                    # Verificar home hex
+                    puts "[DEBUG]   entity coordinates: #{entity.coordinates}"
+                    puts "[DEBUG]   entity tokens: #{entity.tokens.map { |t| { city: t.city&.hex&.name, used: t.used } }}"
+                  end
+                end
+
                 engine = engine.process_action(r.params, validate_auto_actions: true)
+                if engine.exception
+                  puts "[DEBUG] EXCEPTION: #{engine.exception}"
+                  puts "[DEBUG] ========================================"
+                end
                 halt(500, "Illegal action: #{engine.exception}") if engine.exception
                 action = engine.raw_actions.last.to_h
+                puts "[DEBUG] Action processed successfully"
+                puts "[DEBUG] ========================================"
 
                 Action.create(
                   game: game,

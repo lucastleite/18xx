@@ -69,7 +69,9 @@ module Engine
 
         # For tile laying, always use the normal graph (tokens block)
         # Diamond trains only bypass blocking for running routes, not for laying track
-        def tile_lay_graph_for_entity(_entity)
+        def tile_lay_graph_for_entity(entity)
+          puts "[DEBUG][tile_lay_graph_for_entity] entity: #{entity&.name}, returning @graph"
+          puts "[DEBUG]   @graph: #{@graph.inspect[0..200]}"
           @graph
         end
 

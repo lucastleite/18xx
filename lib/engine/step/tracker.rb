@@ -414,38 +414,60 @@ module Engine
         entities = Array(entity_or_entities)
         entity, *_combo_entities = entities
 
-        return false unless @game.legal_tile_rotation?(entity, hex, tile)
+        puts "[DEBUG][legal_tile_rotation?] Starting check"
+        puts "[DEBUG]   entity: #{entity&.name}"
+        puts "[DEBUG]   hex: #{hex&.name}"
+        puts "[DEBUG]   tile: #{tile&.name}, rotation: #{tile&.rotation}"
+
+        game_legal = @game.legal_tile_rotation?(entity, hex, tile)
+        puts "[DEBUG]   @game.legal_tile_rotation?: #{game_legal}"
+        return false unless game_legal
 
         old_ctedges = hex.tile.city_town_edges
+        puts "[DEBUG]   old_ctedges: #{old_ctedges}"
 
         new_exits = tile.exits
         new_ctedges = tile.city_town_edges
         added_cities = [0, new_ctedges.size - old_ctedges.size].max
         multi_city_upgrade = tile.cities.size > 1 && hex.tile.cities.size > 1
+        
+        puts "[DEBUG]   new_exits: #{new_exits}"
+        puts "[DEBUG]   new_ctedges: #{new_ctedges}"
 
         all_new_exits_valid = new_exits.all? { |edge| hex_neighbor_exists?(entity, hex, edge) }
+        puts "[DEBUG]   all_new_exits_valid: #{all_new_exits_valid}"
         return false unless all_new_exits_valid
 
         neighbors = hex_neighbors(entity, hex) || []
+        puts "[DEBUG]   hex_neighbors: #{neighbors}"
         entity_reaches_a_new_exit = !(new_exits & neighbors).empty?
+        puts "[DEBUG]   entity_reaches_a_new_exit: #{entity_reaches_a_new_exit}"
+        puts "[DEBUG]   new_exits & neighbors: #{new_exits & neighbors}"
         return false unless entity_reaches_a_new_exit
 
-        return false unless old_paths_maintained?(hex, tile)
+        old_paths_ok = old_paths_maintained?(hex, tile)
+        puts "[DEBUG]   old_paths_maintained?: #{old_paths_ok}"
+        return false unless old_paths_ok
 
         # Count how many cities on the new tile that aren't included by any of the old tile.
         # Make sure this isn't more than the number of new cities added.
         # 1836jr30 D6 -> 54 adds more cities
         valid_added_city_count = added_cities >= new_ctedges.count { |newct| old_ctedges.all? { |oldct| (newct & oldct).none? } }
+        puts "[DEBUG]   valid_added_city_count: #{valid_added_city_count}"
         return false unless valid_added_city_count
 
         # 1867: Does every old city correspond to exactly one new city?
         old_cities_map_to_new =
           !multi_city_upgrade ||
           old_ctedges.all? { |oldct| new_ctedges.one? { |newct| (oldct & newct) == oldct } }
+        puts "[DEBUG]   old_cities_map_to_new: #{old_cities_map_to_new}"
         return false unless old_cities_map_to_new
 
-        return false unless city_sizes_maintained(hex, tile)
+        city_sizes_ok = city_sizes_maintained(hex, tile)
+        puts "[DEBUG]   city_sizes_maintained: #{city_sizes_ok}"
+        return false unless city_sizes_ok
 
+        puts "[DEBUG]   PASSED all checks, returning true"
         true
       end
 
@@ -476,7 +498,9 @@ module Engine
       end
 
       def hex_neighbors(entity, hex)
-        @game.tile_lay_graph_for_entity(entity).connected_hexes(entity)[hex]
+        result = @game.tile_lay_graph_for_entity(entity).connected_hexes(entity)[hex]
+        puts "[DEBUG][hex_neighbors] entity: #{entity&.name}, hex: #{hex&.name}, result: #{result.inspect}"
+        result
       end
 
       def can_buy_tile_laying_company?(entity, time:)
