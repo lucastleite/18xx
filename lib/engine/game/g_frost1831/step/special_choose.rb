@@ -132,18 +132,40 @@ module Engine
             raise GameError, 'Opposition rule' if opposing_faction?(player, faction)
             raise GameError, 'Exceeds 60% limit' if player.percent_of(faction) >= 60
 
+            was_floated = faction.floated?
+
             # Transfer 1 share from IPO to player (no cost — exchanging the private)
             share = faction.ipo_shares.find(&:buyable)
             @game.share_pool.transfer_shares(share.to_bundle, player)
 
             # Faction gains 1 influence cube
             @game.faction_influence_gain(faction.id)
+            @game.move_government(faction.id)
 
             @log << "#{player.name} exchanges #{company.name} for a share of #{faction.name}"
 
             # Close the private company (consumed)
             company.close!
             @log << "#{company.name} is closed"
+
+            # Check if faction just floated
+            float_faction(faction) if !was_floated && faction.floated?
+          end
+
+          def float_faction(faction)
+            @log << "#{faction.name} is founded!"
+            faction.floated = true
+
+            available_hexes = @game.available_faction_cities.map { |hex_id| @game.hex_by_id(hex_id) }
+            token = faction.find_token_by_type
+
+            @log << "#{faction.name} must choose city for base"
+            @round.pending_tokens << {
+              entity: faction,
+              hexes: available_hexes,
+              token: token,
+            }
+            @round.clear_cache!
           end
 
           def opposing_faction?(player, faction)
