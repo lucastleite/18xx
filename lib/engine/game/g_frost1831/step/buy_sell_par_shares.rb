@@ -114,6 +114,9 @@ module Engine
               bundle = shares.is_a?(Engine::ShareBundle) ? shares : Engine::ShareBundle.new(shares)
               price = @game.faction_share_price(corporation) * bundle.num_shares
 
+              # Mark as sold to prevent buying same turn
+              @round.players_sold[entity][corporation] = :now
+
               # Pay player the ruler price
               @game.bank.spend(price, entity)
 

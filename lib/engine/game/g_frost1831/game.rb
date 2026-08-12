@@ -1746,12 +1746,13 @@ module Engine
           corporation = entity.corporation? ? entity : entity.owner
           return unless corporation&.corporation?
 
-          # Factions: cube goes directly to Parliament (no government movement)
+          # Factions: cube goes directly to Parliament
           if corporation.type == :faction
             limit = faction_influence_limit
             if @faction_influence[corporation.id] < limit
               @faction_influence[corporation.id] += 1
               @log << "#{corporation.name} gains 1 Influence in Parliament from NL route (#{hex.name})"
+              move_government(corporation.id)
             else
               @log << "#{corporation.name} at Parliament limit — Influence from NL route not gained"
             end
