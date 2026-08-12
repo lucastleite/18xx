@@ -173,6 +173,18 @@ class Api < Roda
       { result: true, id: target_user.id, name: target_user.name }
     end
 
+    # Set auto_routing for a game: /auto-routing/19/true or /auto-routing/19/false
+    r.get 'auto-routing', Integer, String do |game_id, enabled|
+      game = Game[game_id]
+      halt(404, 'Game not found') unless game
+
+      value = enabled.downcase == 'true'
+      game.settings['auto_routing'] = value
+      game.save
+
+      { result: true, game_id: game.id, auto_routing: value }
+    end
+
     r.on 'profile' do
       r.get Integer do |id|
         halt(404, 'User does not exist') unless (profile = User[id])
