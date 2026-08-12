@@ -704,6 +704,161 @@ WHERE id = 10;
 
 ---
 
+## Copiar Jogo Online (com Substituição de Jogadores)
+
+Quando precisar copiar um jogo para outro ID, substituindo jogadores.
+
+### Regras Importantes
+
+1. **Limite de 100 registros por operação** - O Railway limita inserções/updates, então sempre fazer em batches de 100
+2. **Ordem de ações importa** - Sempre usar `ORDER BY action_id` ao copiar
+3. **Campos a atualizar**:
+   - `user_id` na tabela `game_users`
+   - `user_id` na tabela `actions`
+   - `action->>'entity'` quando `entity_type = 'player'`
+   - `settings->'player_order'` na tabela `games`
+   - `acting` na tabela `games`
+
+### Passo a Passo Completo
+
+#### 1. Limpar dados existentes do jogo destino
+
+```sql
+DELETE FROM actions WHERE game_id = DEST_ID;
+```
+
+```sql
+DELETE FROM game_users WHERE game_id = DEST_ID;
+```
+
+#### 2. Copiar game_users (com substituição de jogador)
+
+```sql
+INSERT INTO game_users (game_id, user_id, created_at, updated_at)
+SELECT DEST_ID, CASE WHEN user_id = OLD_USER THEN NEW_USER ELSE user_id END, created_at, updated_at
+FROM game_users WHERE game_id = SOURCE_ID;
+```
+
+#### 3. Copiar ações em batches de 100
+
+**Primeiro batch (action_id 1 a 100):**
+
+```sql
+INSERT INTO actions (game_id, user_id, action_id, action, created_at, updated_at)
+SELECT DEST_ID, CASE WHEN user_id = OLD_USER THEN NEW_USER ELSE user_id END, action_id, action, created_at, updated_at
+FROM actions WHERE game_id = SOURCE_ID AND action_id >= 1 AND action_id <= 100
+ORDER BY action_id;
+```
+
+```sql
+UPDATE actions 
+SET action = jsonb_set(action, '{entity}', to_jsonb(NEW_USER::text))
+WHERE game_id = DEST_ID 
+AND action->>'entity' = OLD_USER::text
+AND action->>'entity_type' = 'player'
+AND action_id >= 1 AND action_id <= 100;
+```
+
+**Segundo batch (action_id 101 a 200):**
+
+```sql
+INSERT INTO actions (game_id, user_id, action_id, action, created_at, updated_at)
+SELECT DEST_ID, CASE WHEN user_id = OLD_USER THEN NEW_USER ELSE user_id END, action_id, action, created_at, updated_at
+FROM actions WHERE game_id = SOURCE_ID AND action_id >= 101 AND action_id <= 200
+ORDER BY action_id;
+```
+
+```sql
+UPDATE actions 
+SET action = jsonb_set(action, '{entity}', to_jsonb(NEW_USER::text))
+WHERE game_id = DEST_ID 
+AND action->>'entity' = OLD_USER::text
+AND action->>'entity_type' = 'player'
+AND action_id >= 101 AND action_id <= 200;
+```
+
+**Repetir para batches subsequentes (201-300, 301-400, etc.)**
+
+#### 4. Atualizar player_order no settings
+
+```sql
+UPDATE games 
+SET settings = jsonb_set(settings, '{player_order}', '[FIRST_USER, SECOND_USER]')
+WHERE id = DEST_ID;
+```
+
+**Nota:** A ordem no array define quem joga primeiro. Verificar ordem original:
+
+```sql
+SELECT user_id, created_at FROM game_users WHERE game_id = SOURCE_ID ORDER BY created_at;
+```
+
+#### 5. Atualizar acting (quem é a vez)
+
+```sql
+UPDATE games SET acting = '{NEW_USER}' WHERE id = DEST_ID;
+```
+
+**Nota:** `acting` é `integer[]`, não jsonb.
+
+### Exemplo Completo: Copiar jogo 19 → 12, jogador 1 → 2
+
+```sql
+-- 1. Limpar destino
+DELETE FROM actions WHERE game_id = 12;
+DELETE FROM game_users WHERE game_id = 12;
+
+-- 2. Copiar game_users
+INSERT INTO game_users (game_id, user_id, created_at, updated_at)
+SELECT 12, CASE WHEN user_id = 1 THEN 2 ELSE user_id END, created_at, updated_at
+FROM game_users WHERE game_id = 19;
+
+-- 3. Copiar ações batch 1 (1-100)
+INSERT INTO actions (game_id, user_id, action_id, action, created_at, updated_at)
+SELECT 12, CASE WHEN user_id = 1 THEN 2 ELSE user_id END, action_id, action, created_at, updated_at
+FROM actions WHERE game_id = 19 AND action_id >= 1 AND action_id <= 100
+ORDER BY action_id;
+
+UPDATE actions 
+SET action = jsonb_set(action, '{entity}', '"2"')
+WHERE game_id = 12 
+AND action->>'entity' = '1'
+AND action->>'entity_type' = 'player'
+AND action_id >= 1 AND action_id <= 100;
+
+-- 4. Copiar ações batch 2 (101-200)
+INSERT INTO actions (game_id, user_id, action_id, action, created_at, updated_at)
+SELECT 12, CASE WHEN user_id = 1 THEN 2 ELSE user_id END, action_id, action, created_at, updated_at
+FROM actions WHERE game_id = 19 AND action_id >= 101 AND action_id <= 200
+ORDER BY action_id;
+
+UPDATE actions 
+SET action = jsonb_set(action, '{entity}', '"2"')
+WHERE game_id = 12 
+AND action->>'entity' = '1'
+AND action->>'entity_type' = 'player'
+AND action_id >= 101 AND action_id <= 200;
+
+-- 5. Setar player_order (jogo 19 tinha 6 primeiro, depois 1→2)
+UPDATE games 
+SET settings = jsonb_set(settings, '{player_order}', '[6, 2]')
+WHERE id = 12;
+
+-- 6. Atualizar acting se necessário
+UPDATE games SET acting = '{6}' WHERE id = 12;
+```
+
+### Verificar Resultado
+
+```sql
+SELECT COUNT(*) FROM actions WHERE game_id = 12;
+SELECT MAX(action_id) FROM actions WHERE game_id = 12;
+SELECT user_id FROM game_users WHERE game_id = 12;
+SELECT settings->'player_order', acting FROM games WHERE id = 12;
+```
+
+---
+
 ## Incrementar esta Skill
 
 Quando o usuário pedir algo novo relacionado a manipulação de jogos que não esteja documentado aqui, adicionar o comando/procedimento a esta skill para referência futura.
