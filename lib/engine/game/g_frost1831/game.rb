@@ -493,6 +493,13 @@ module Engine
           @no_blocking_graph&.clear
         end
 
+        # Override to treat home hexes as connected for corps laying first tile
+        # Without this, legal_tile_rotation? fails because hex_neighbors returns nil
+        # for corps that haven't laid track yet (home hex not in connected_hexes)
+        def init_graph
+          Graph.new(self, home_as_token: true)
+        end
+
         # Expose reorder_players publicly for use by Stock round
         def reorder_players(order = nil, log_player_order: false, silent: false)
           super

@@ -200,6 +200,17 @@ ORDER BY action_id;
 SELECT * FROM actions WHERE game_id = GAME_ID AND action_id = ACTION_ID;
 ```
 
+### Comparar ações entre jogos (range de 5 antes a 5 depois)
+
+Quando pedir para ver uma ação X de múltiplos jogos, sempre mostrar o range X-5 até X+5:
+
+```sql
+SELECT game_id, action_id, action->>'type' as type, action->>'entity' as entity, action->>'entity_type' as entity_type
+FROM actions 
+WHERE game_id IN (GAME_ID_1, GAME_ID_2) AND action_id BETWEEN ACTION_ID-5 AND ACTION_ID+5
+ORDER BY action_id, game_id;
+```
+
 ### Remover ação por action_id
 
 ```sql
