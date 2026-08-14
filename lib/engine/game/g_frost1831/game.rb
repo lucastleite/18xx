@@ -1917,6 +1917,16 @@ module Engine
           ['Influence', cubes.to_s]
         end
 
+        # Order shares in player card: factions first (by percent desc), then corps (by percent desc)
+        def player_card_shares_order(player, shares)
+          factions, corps = shares.partition { |c, _| c.type == :faction }
+
+          sorted_factions = factions.sort_by { |c, s| [-s.sum(&:percent), c.president?(player) ? 0 : 1, c.name] }
+          sorted_corps = corps.sort_by { |c, s| [-s.sum(&:percent), c.president?(player) ? 0 : 1, c.name] }
+
+          sorted_factions + sorted_corps
+        end
+
         def faction_support_available
           @faction_support_pool.uniq
         end
