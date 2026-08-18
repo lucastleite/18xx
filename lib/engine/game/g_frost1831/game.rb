@@ -678,7 +678,9 @@ module Engine
         def entity_can_use_company?(entity, company)
           # INF is player-owned and should only be usable by its owner
           if company.sym == 'INF'
-            current_player = if @round.is_a?(Engine::Round::Operating)
+            current_player = if @round.is_a?(GFrost1831::Round::Voting)
+                               current_voting_president
+                             elsif @round.is_a?(Engine::Round::Operating)
                                @round.current_entity&.player
                              else
                                @round.current_entity
@@ -1209,7 +1211,7 @@ module Engine
         end
 
         def extra_game_tabs
-          [{ title: 'P|arliament', anchor: 'parliament', klass: View::Game::Parliament, key: 'p' }]
+          [{ title: 'P|arliament', anchor: 'parliament', klass: View::Game::GFrost1831::Parliament, key: 'p' }]
         end
 
         def ipo_name(entity = nil)
@@ -1915,16 +1917,6 @@ module Engine
           return nil unless cubes.positive?
 
           ['Influence', cubes.to_s]
-        end
-
-        # Order shares in player card: factions first (by percent desc), then corps (by percent desc)
-        def player_card_shares_order(player, shares)
-          factions, corps = shares.partition { |c, _| c.type == :faction }
-
-          sorted_factions = factions.sort_by { |c, s| [-s.sum(&:percent), c.president?(player) ? 0 : 1, c.name] }
-          sorted_corps = corps.sort_by { |c, s| [-s.sum(&:percent), c.president?(player) ? 0 : 1, c.name] }
-
-          sorted_factions + sorted_corps
         end
 
         def faction_support_available

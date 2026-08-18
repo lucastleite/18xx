@@ -18,6 +18,7 @@ module View
           @current_actions = entity ? round.actions_for(entity) : []
 
           children = []
+
           children << h(Choose) if @current_actions.include?('choose')
           children << h(:div, { style: { width: '100%', maxWidth: '750px' } }, [
             h(MarketRegulation, game: @game),

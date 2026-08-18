@@ -220,16 +220,11 @@ module View
       def render_shares
         shares = @player
           .shares_by_corporation.reject { |_, s| s.empty? }
+          .sort_by { |c, s| [s.sum(&:percent), c.president?(@player) ? 1 : 0, c.name] }
+          .reverse
+          .map { |c, s| render_corporation_shares(c, s) }
 
-        shares = if @game.respond_to?(:player_card_shares_order)
-                   @game.player_card_shares_order(@player, shares)
-                 else
-                   shares
-                     .sort_by { |c, s| [s.sum(&:percent), c.president?(@player) ? 1 : 0, c.name] }
-                     .reverse
-                 end
-
-        h(:table, shares.map { |c, s| render_corporation_shares(c, s) })
+        h(:table, shares)
       end
 
       def render_corporation_shares(corporation, shares)

@@ -33,6 +33,26 @@ module Engine
             active?
           end
 
+          # Auto-maintain if faction has no influence AND president doesn't have Use Influence ability
+          def auto_actions(entity)
+            return unless @game.voting_phase == :vote
+            return unless entity == @game.current_voting_faction
+
+            faction = entity
+            return unless faction
+
+            has_influence = @game.faction_influence(faction.id).positive?
+            return if has_influence
+
+            president = faction.owner
+            has_inf_ability = president&.companies&.any? { |c| c.sym == 'INF' && !c.closed? }
+            return if has_inf_ability
+
+            # No influence and no INF ability — auto-maintain
+            @log << "#{president&.name} (#{faction.name}) auto-maintains (no influence)"
+            [Engine::Action::Choose.new(faction, choice: 'maintain')]
+          end
+
           def description
             faction = @game.current_voting_faction
             case @game.voting_phase
@@ -125,15 +145,21 @@ module Engine
             reg = @game.current_voting_regulation
             return {} unless reg
 
+            faction = @game.current_voting_faction
+            has_influence = faction && @game.faction_influence(faction.id).positive?
+
             choices = {}
-            case reg[:position]
-            when 0
-              choices['up'] = 'Normalize (1◆)'
-            when 1
-              choices['down'] = 'Loosen (1◆)'
-              choices['up'] = 'Tighten (1◆)'
-            when 2
-              choices['down'] = 'Normalize (1◆)'
+            # Only show vote options if faction has influence to spend
+            if has_influence
+              case reg[:position]
+              when 0
+                choices['up'] = 'Normalize (1◆)'
+              when 1
+                choices['down'] = 'Loosen (1◆)'
+                choices['up'] = 'Tighten (1◆)'
+              when 2
+                choices['down'] = 'Normalize (1◆)'
+              end
             end
             choices['maintain'] = 'Maintain (0◆)'
             choices

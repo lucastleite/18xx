@@ -205,7 +205,7 @@ SELECT * FROM actions WHERE game_id = GAME_ID AND action_id = ACTION_ID;
 Quando pedir para ver uma ação X de múltiplos jogos, sempre mostrar o range X-5 até X+5:
 
 ```sql
-SELECT game_id, action_id, action->>'type' as type, action->>'entity' as entity, action->>'entity_type' as entity_type
+SELECT *
 FROM actions 
 WHERE game_id IN (GAME_ID_1, GAME_ID_2) AND action_id BETWEEN ACTION_ID-5 AND ACTION_ID+5
 ORDER BY action_id, game_id;
@@ -249,6 +249,95 @@ LIMIT 1;
 
 ```sql
 SELECT COUNT(*) FROM actions WHERE game_id = GAME_ID;
+```
+
+---
+
+## Auto Routing
+
+### Habilitar auto routing
+
+```sql
+UPDATE games SET settings = jsonb_set(settings, '{auto_routing}', 'true') WHERE id = GAME_ID;
+```
+
+### Desabilitar auto routing
+
+```sql
+UPDATE games SET settings = jsonb_set(settings, '{auto_routing}', 'false') WHERE id = GAME_ID;
+```
+
+### Verificar se auto routing está habilitado
+
+```sql
+SELECT id, settings->>'auto_routing' as auto_routing FROM games WHERE id = GAME_ID;
+```
+
+---
+
+## Copiar Ações Entre Jogos
+
+### Copiar range de ações de um jogo para outro (substituindo jogador)
+
+Útil para sincronizar jogos clonados quando um avança mais que o outro.
+
+**IMPORTANTE:** Antes de copiar, deletar ações existentes no destino a partir do action_id inicial:
+
+```sql
+-- 1. Deletar ações existentes no destino
+DELETE FROM actions WHERE game_id = GAME_DESTINO AND action_id >= ACTION_INICIAL;
+
+-- 2. Copiar ações substituindo jogador (ex: jogador 1 vira jogador 2)
+INSERT INTO actions (game_id, action_id, action, user_id, created_at, updated_at)
+SELECT 
+  GAME_DESTINO as game_id,
+  action_id,
+  CASE 
+    WHEN action->>'entity' = 'JOGADOR_ORIGEM' AND action->>'entity_type' = 'player'
+    THEN jsonb_set(action, '{entity}', '"JOGADOR_DESTINO"')
+    ELSE action
+  END as action,
+  CASE WHEN user_id = JOGADOR_ORIGEM THEN JOGADOR_DESTINO ELSE user_id END as user_id,
+  created_at,
+  updated_at
+FROM actions
+WHERE game_id = GAME_ORIGEM AND action_id BETWEEN ACTION_INICIAL AND ACTION_FINAL;
+```
+
+**Exemplo:** Copiar ações 139-226 do jogo 19 para jogo 12, trocando jogador 1 por 2:
+
+```sql
+DELETE FROM actions WHERE game_id = 12 AND action_id >= 139;
+
+INSERT INTO actions (game_id, action_id, action, user_id, created_at, updated_at)
+SELECT 
+  12 as game_id,
+  action_id,
+  CASE 
+    WHEN action->>'entity' = '1' AND action->>'entity_type' = 'player'
+    THEN jsonb_set(action, '{entity}', '"2"')
+    ELSE action
+  END as action,
+  CASE WHEN user_id = 1 THEN 2 ELSE user_id END as user_id,
+  created_at,
+  updated_at
+FROM actions
+WHERE game_id = 19 AND action_id BETWEEN 139 AND 226;
+```
+
+### Copiar ações sem substituir jogador
+
+```sql
+INSERT INTO actions (game_id, action_id, action, user_id, created_at, updated_at)
+SELECT 
+  GAME_DESTINO as game_id,
+  action_id,
+  action,
+  user_id,
+  created_at,
+  updated_at
+FROM actions
+WHERE game_id = GAME_ORIGEM AND action_id BETWEEN ACTION_INICIAL AND ACTION_FINAL;
 ```
 
 ---
