@@ -506,7 +506,17 @@ module Engine
         end
 
         def operating_round(round_num)
+          # Clear OR priority choice at start of each OR
+          clear_or_priority_choice!
+
+          # Trigger OR priority choice if needed
+          if needs_or_priority_choice?
+            priority_player = players.reject(&:bankrupt).first
+            trigger_or_priority_choice!(priority_player)
+          end
+
           Engine::Round::Operating.new(self, [
+            GFrost1831::Step::ChoosePriorityFaction,
             GFrost1831::Step::PreTurmoilInfluence,
             GFrost1831::Step::Turmoil,
             GFrost1831::Step::Intervention,
@@ -595,7 +605,7 @@ module Engine
         def faction_operating_order
           return [] unless parliament_open?
 
-          all_factions_arena_order.select { |f| f.floated? }
+          factions_or_order.select { |f| f.floated? }
         end
 
         # Insert Voting Round between SR and OR (from Phase 3 onwards)
@@ -1708,9 +1718,13 @@ module Engine
           @voting_rounds_remaining = 0
           @voting_proposer_index = 0
           @current_voting_regulation_id = nil
-          @chosen_priority_faction = nil # Set by priority player when government is neutral
+          @chosen_priority_faction = nil # Set by priority player when government is neutral (for VR)
           @pending_priority_faction_choice = false
           @priority_faction_chooser = nil
+          # Separate OR priority choice (reset each OR)
+          @chosen_or_priority_faction = nil
+          @pending_or_priority_choice = false
+          @or_priority_chooser = nil
 
           # Give each faction its £500 treasury (per setup rules)
           # Also set unplaced tokens to show "5◆" via hex stub
@@ -2423,11 +2437,33 @@ module Engine
                     idx = ARENA_CLOCKWISE_ORDER.index(governing_sym) || 0
                     ARENA_CLOCKWISE_ORDER.rotate(idx)
                   elsif @chosen_priority_faction
-                    # Neutral but priority player has chosen
+                    # Neutral but priority player has chosen (for VR)
                     idx = ARENA_CLOCKWISE_ORDER.index(@chosen_priority_faction) || 0
                     ARENA_CLOCKWISE_ORDER.rotate(idx)
                   else
                     # Neutral and no choice yet: use default order
+                    ARENA_CLOCKWISE_ORDER
+                  end
+
+          order.map { |sym| @corporations.find { |c| c.id == sym } }.compact
+        end
+
+        # Faction order specifically for Operating Round
+        # Uses OR-specific choice if available, otherwise falls back to VR choice
+        def factions_or_order
+          governing_sym = governing_faction_sym
+          order = if governing_sym
+                    idx = ARENA_CLOCKWISE_ORDER.index(governing_sym) || 0
+                    ARENA_CLOCKWISE_ORDER.rotate(idx)
+                  elsif @chosen_or_priority_faction
+                    # OR-specific choice takes precedence
+                    idx = ARENA_CLOCKWISE_ORDER.index(@chosen_or_priority_faction) || 0
+                    ARENA_CLOCKWISE_ORDER.rotate(idx)
+                  elsif @chosen_priority_faction
+                    # Fall back to VR choice
+                    idx = ARENA_CLOCKWISE_ORDER.index(@chosen_priority_faction) || 0
+                    ARENA_CLOCKWISE_ORDER.rotate(idx)
+                  else
                     ARENA_CLOCKWISE_ORDER
                   end
 
@@ -2464,13 +2500,56 @@ module Engine
 
         def set_priority_faction!(faction_sym)
           @chosen_priority_faction = faction_sym
-          @log << "#{@priority_faction_chooser.name} chooses #{faction_display_name(faction_sym)} as priority faction"
+          @log << "#{@priority_faction_chooser.name} chooses #{faction_display_name(faction_sym)} as priority faction for Voting Round"
           @pending_priority_faction_choice = false
           @priority_faction_chooser = nil
         end
 
         def clear_priority_faction_choice!
           @chosen_priority_faction = nil
+        end
+
+        # OR priority choice methods
+        def pending_or_priority_choice
+          @pending_or_priority_choice
+        end
+
+        def or_priority_chooser
+          @or_priority_chooser
+        end
+
+        def trigger_or_priority_choice!(player)
+          @pending_or_priority_choice = true
+          @or_priority_chooser = player
+        end
+
+        def set_or_priority_faction!(faction_sym)
+          @chosen_or_priority_faction = faction_sym
+          @log << "#{@or_priority_chooser.name} chooses #{faction_display_name(faction_sym)} as first faction for Operating Round"
+          @pending_or_priority_choice = false
+          @or_priority_chooser = nil
+
+          # Reorder entities in the current round to reflect the new order
+          reorder_or_entities!
+        end
+
+        def reorder_or_entities!
+          return unless @round.is_a?(Engine::Round::Operating)
+
+          # Recalculate operating order and update round entities
+          @round.entities = operating_order
+          @round.entity_index = 0
+        end
+
+        def clear_or_priority_choice!
+          @chosen_or_priority_faction = nil
+        end
+
+        def needs_or_priority_choice?
+          return false unless government_neutral?
+          return false unless parliament_open?
+
+          floated_factions.size >= 2
         end
 
         def governing_faction_sym

@@ -10,20 +10,20 @@ module Engine
           ACTIONS = %w[choose].freeze
 
           def actions(entity)
-            return [] unless @game.pending_priority_faction_choice
-            return [] unless entity == @game.priority_faction_chooser
+            return [] unless pending_choice?
+            return [] unless entity == chooser
 
             ACTIONS
           end
 
           def active_entities
-            return [] unless @game.pending_priority_faction_choice
+            return [] unless pending_choice?
 
-            [@game.priority_faction_chooser].compact
+            [chooser].compact
           end
 
           def active?
-            @game.pending_priority_faction_choice
+            pending_choice?
           end
 
           def blocking?
@@ -31,12 +31,19 @@ module Engine
           end
 
           def description
-            'Choose Priority Faction'
+            if @game.pending_or_priority_choice
+              'Choose Operating Order'
+            else
+              'Choose Voting Order'
+            end
           end
 
           def help
-            'The government is neutral. As priority deal holder, choose which faction has priority ' \
-              'for the upcoming Voting Round and Operating Rounds.'
+            if @game.pending_or_priority_choice
+              'The government is neutral. As priority deal holder, choose which faction operates first this Operating Round.'
+            else
+              'The government is neutral. As priority deal holder, choose which faction goes first in the upcoming Voting Round.'
+            end
           end
 
           def choice_name
@@ -63,15 +70,29 @@ module Engine
 
           def process_choose(action)
             faction_sym = action.choice
-            @game.set_priority_faction!(faction_sym)
+            if @game.pending_or_priority_choice
+              @game.set_or_priority_faction!(faction_sym)
+            else
+              @game.set_priority_faction!(faction_sym)
+            end
           end
 
           def choice_available?(entity)
-            entity == @game.priority_faction_chooser && @game.pending_priority_faction_choice
+            entity == chooser && pending_choice?
           end
 
           def ipo_type(_entity)
             nil
+          end
+
+          private
+
+          def pending_choice?
+            @game.pending_priority_faction_choice || @game.pending_or_priority_choice
+          end
+
+          def chooser
+            @game.pending_or_priority_choice ? @game.or_priority_chooser : @game.priority_faction_chooser
           end
         end
       end
