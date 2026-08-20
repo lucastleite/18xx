@@ -67,10 +67,27 @@ module Engine
 
             corp = data[:corporation]
             remaining = data[:opposing].reject { |f| data[:assigned].values.include?(f) }
+            
+            # Count eligible stations
+            stations = data[:stations].reject { |t| data[:assigned].key?(t) }
+            eligible_stations = stations.select { |t| remaining.any? { |f| @game.faction_can_receive_station?(f, t) } }
+            
             faction_names = remaining.map(&:full_name).join(' and ')
+            
+            instruction = if remaining.size == 1
+                            # 1 faction, N stations
+                            "Choose a station to give to #{faction_names}."
+                          elsif eligible_stations.size == 1
+                            # 2 factions, 1 station
+                            "Choose which faction between #{faction_names} receives the station."
+                          else
+                            # 2 factions, 2+ stations
+                            "Choose stations to distribute between #{faction_names}."
+                          end
+            
             [
-              "#{corp.full_name} is being eliminated.",
-              "Click on the map to distribute stations between #{faction_names}.",
+              "#{corp.full_name} is being intervened.",
+              instruction,
             ]
           end
 
