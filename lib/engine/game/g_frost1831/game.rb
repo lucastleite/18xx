@@ -973,6 +973,20 @@ module Engine
           on_corporation_eliminated(corporation)
         end
 
+        # Override to protect FAV and INF companies from being closed with corporation
+        def close_corporation(corporation, quiet: false)
+          # Remove FAV from the corporation before closing (so it doesn't get closed with it)
+          if @favor_company && corporation.companies.include?(@favor_company)
+            corporation.companies.delete(@favor_company)
+            @favor_company.owner = nil
+          end
+
+          # Remove INF from the corporation's president if they own it
+          # (INF is player-owned, not corp-owned, so this shouldn't happen, but just in case)
+
+          super
+        end
+
         # From the second corporation eliminated (Blizzard or Intervention),
         # the cheapest available train in the depot is removed from the game
         # and can trigger a phase change (section 10.4.5.5).
@@ -1096,9 +1110,20 @@ module Engine
           return false if stations.empty?
           return false if opposing.empty?
 
-          # Use constraint propagation to check if assignment is deterministic
-          result = compute_deterministic_assignment(stations, opposing)
-          result.nil? # nil means ambiguous, need choice
+          # Build eligibility map to check if any station can be replaced
+          eligibility = {}
+          stations.each do |token|
+            eligible_factions = opposing.select { |f| faction_can_receive_station?(f, token) }
+            eligibility[token] = eligible_factions unless eligible_factions.empty?
+          end
+
+          # If no station can be replaced, no choice needed
+          return false if eligibility.empty?
+
+          # Always require player confirmation for station replacement
+          # This gives visibility to the player about what will happen
+          # and allows them to reconsider before confirming the intervention consequences
+          true
         end
 
         def auto_assign_stations(corporation, stations, opposing)
@@ -1312,6 +1337,9 @@ module Engine
           return unless @favor_company
           return if entity.type == :faction
           return unless can_request_favor?(entity)
+
+          # Resurrect FAV if it was accidentally closed (e.g., corporation closed with FAV assigned)
+          @favor_company.instance_variable_set(:@closed, false) if @favor_company.closed?
 
           @favor_company.owner = entity
           entity.companies << @favor_company unless entity.companies.include?(@favor_company)
