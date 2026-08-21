@@ -100,7 +100,15 @@ module Engine
           end
 
           def choices
-            @game.intervention_station_choices
+            {}
+          end
+
+          # Used by hex.rb to check if a hex should dispatch a choose action
+          def choices_include?(hex_id)
+            data = @game.intervention_data
+            return false unless data
+
+            eligible_hexes(data).any? { |hex| hex.id == hex_id }
           end
 
           # Don't render choice buttons - player clicks on map instead

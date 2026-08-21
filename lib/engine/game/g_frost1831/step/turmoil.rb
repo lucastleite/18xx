@@ -54,19 +54,18 @@ module Engine
 
           # Return hex names as choices so clicking a hex dispatches the choose action.
           # hex.rb checks: if step.choices.include?(@hex.id) → dispatches Choose action.
-          # Setting render_choices? to false suppresses the generic Choose button UI.
+          # Return empty hash here to prevent button rendering.
+          # Hex clickability is handled by available_hex method.
           def choices
+            {}
+          end
+
+          # Used by hex.rb to check if a hex should dispatch a choose action
+          def choices_include?(hex_id)
             data = @game.pending_turmoil
-            return {} unless data
+            return false unless data
 
-            result = {}
-            data[:eligible_stations].each do |token|
-              hex = token.hex
-              next unless hex
-
-              result[hex.name] = hex.name
-            end
-            result
+            data[:eligible_stations].any? { |t| t.hex&.name == hex_id }
           end
 
           def render_choices?

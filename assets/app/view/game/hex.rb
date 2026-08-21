@@ -244,7 +244,7 @@ module View
                            Lib::InterventionSelector.new(@hex, coordinates, factions))
             end
           end
-          if @actions.include?('choose') && step.choices.include?(@hex.id)
+          if @actions.include?('choose') && step.respond_to?(:choices_include?) && step.choices_include?(@hex.id)
             return process_action(Engine::Action::Choose.new(
                 @entity,
                 choice: @hex.id,
