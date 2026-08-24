@@ -187,6 +187,7 @@ module Engine
             faction = @game.current_voting_faction
 
             if choice == 'maintain'
+              @log << "#{player.name} (#{faction.name}) maintains"
               @game.voting_pass(player)
               return
             end
