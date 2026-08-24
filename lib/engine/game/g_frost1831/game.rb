@@ -1603,14 +1603,14 @@ module Engine
           destroyed_tokens = []
 
           affected_hexes.each do |hex|
-            tile = hex.tile
+            yellow_tile = hex.tile
 
             # Only affect yellow tiles
-            next unless tile.color == :yellow
+            next unless yellow_tile.color == :yellow
 
             # Collect tokens to destroy before downgrade
             tokens_to_destroy = []
-            tile.cities.each do |city|
+            yellow_tile.cities.each do |city|
               city.tokens.each_with_index do |token, _idx|
                 next unless token
 
@@ -1622,6 +1622,9 @@ module Engine
             # Remove the yellow tile (downgrade to original/blank)
             removed_tiles << hex.name
             hex.lay_downgrade(hex.original_tile)
+
+            # Return the yellow tile to stock
+            @tiles << yellow_tile
 
             # Remove influence cubes from restored tile if already collected
             if @influence_cubes_collected.include?(hex.id)
