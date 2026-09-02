@@ -1174,9 +1174,10 @@ module Engine
             revenue += 50
           end
 
-          # Bonus: NL + L (East) = +£70
-          if has_nl && (hexes & EAST_HEXES).any?
-            revenue += 70
+          # Bonus: NL + L (East) = +£70 per L hex
+          if has_nl
+            l_count = (hexes & EAST_HEXES).size
+            revenue += 70 * l_count
           end
 
           revenue
@@ -1189,7 +1190,8 @@ module Engine
           has_nl = hexes.include?(NL_HEX)
 
           str += ' + S-NL-N(+50)' if has_nl && (hexes & NORTH_HEXES).any? && (hexes & SOUTH_HEXES).any?
-          str += ' + NL-L(+70)' if has_nl && (hexes & EAST_HEXES).any?
+          l_count = (hexes & EAST_HEXES).size
+          str += " + NL-L(+#{70 * l_count})" if has_nl && l_count.positive?
 
           str
         end
