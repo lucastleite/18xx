@@ -51,6 +51,19 @@ module Engine
 
           def place_token(entity, city, token, **kwargs)
             if entity.type == :faction
+              hex = city.hex
+
+              # Validate: faction can't have 2 bases in same hex
+              if city.tokens.any? { |t| t&.corporation == entity }
+                raise GameError, "#{entity.name} already has a base in #{hex.id}"
+              end
+
+              # Validate: must be connected to existing base (unless first base)
+              existing_bases = entity.tokens.select(&:used).map(&:hex)
+              if existing_bases.any? && !@game.connected_to_faction_base?(entity, hex, existing_bases)
+                raise GameError, "#{hex.id} is not connected to #{entity.name}'s existing bases"
+              end
+
               cubes = @game.faction_influence(entity.id)
               if cubes < BASE_INFLUENCE_COST
                 raise GameError, "#{entity.name} needs #{BASE_INFLUENCE_COST} Influence but has #{cubes}"
