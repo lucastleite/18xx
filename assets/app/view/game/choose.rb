@@ -10,7 +10,12 @@ module View
       needs :entity, default: nil
 
       def render
-        step = @game.round.active_step
+        # Resolve the step that actually offers the `choose` action rather than
+        # relying on `active_step`, which can be a stale/non-blocking step (e.g.
+        # in 1822CA, after a corporation lays a tile on its destination hex the
+        # memoized active_step can point at the Token step, which has no
+        # #choices, while the blocking Route step is the one offering `choose`).
+        step = @game.round.step_for(@game.current_entity, 'choose') || @game.round.active_step
         return '' if step.respond_to?(:render_choices?) && !step.render_choices?
 
         choices = if step.respond_to?(:entity_choices)
@@ -25,7 +30,7 @@ module View
                              false
                            end
 
-        return render_choice_amount(choices) if choice_is_amount
+        return render_choice_amount(choices, step) if choice_is_amount
 
         choice_buttons = choices.map do |choice, label|
           label ||= choice
@@ -64,7 +69,7 @@ module View
         h(:div, children)
       end
 
-      def render_choice_amount(amounts)
+      def render_choice_amount(amounts, step = @game.round.active_step)
         min, max = amounts
 
         input = h('input.no_margin',
@@ -94,7 +99,7 @@ module View
             h('div.inline',
               { style: { marginTop: '0.5rem' } },
               [
-                h('span', "#{@game.round.active_step.choice_name}: "),
+                h('span', "#{step.choice_name}: "),
                 input,
                 h('button', { style: { padding: '0.2rem 0.2rem' }, on: { click: click } }, 'Transfer'),
               ]),
