@@ -12,7 +12,7 @@ module Engine
   module Game
     module G1835
       class Game < Game::Base
-        attr_accessor :draft_finished, :pr_can_form, :conversion_choice_during_or
+        attr_accessor :pr_can_form, :conversion_choice_during_or
         attr_reader :preussen_may_float
 
         include_meta(G1835::Meta)
@@ -61,16 +61,8 @@ module Engine
 
         PHASES = [
           {
-            name: '1.1',
+            name: '1',
             on: '2',
-            train_limit: { minor: 2, major: 4 },
-            tiles: [:yellow],
-            status: ['two_tile_lays'],
-            operating_rounds: 1,
-          },
-          {
-            name: '1.2',
-            on: '2+2',
             train_limit: { minor: 2, major: 4 },
             tiles: [:yellow],
             status: ['two_tile_lays'],
@@ -86,56 +78,16 @@ module Engine
           },
           {
             name: '2.2',
-            on: '3+3',
-            train_limit: { major: 4, minor: 2 },
-            tiles: %i[yellow green],
-            status: %w[can_buy_trains lay_or_upgrade],
-            operating_rounds: 2,
-          },
-          {
-            name: '2.3',
             on: '4',
-            train_limit: { prussian: 4, major: 3, minor: 1 },
+            train_limit: { minor: 1, major: 3, prussian: 4 },
             tiles: %i[yellow green],
             status: %w[can_buy_trains lay_or_upgrade],
             operating_rounds: 2,
           },
           {
-            name: '2.4',
-            on: '4+4',
-            train_limit: { prussian: 4, major: 3, minor: 1 },
-            tiles: %i[yellow green],
-            status: %w[can_buy_trains lay_or_upgrade],
-            operating_rounds: 2,
-          },
-          {
-            name: '3.1',
+            name: '3',
             on: '5',
-            train_limit: { prussian: 3, major: 2 },
-            tiles: %i[yellow green brown],
-            status: %w[can_buy_trains lay_or_upgrade],
-            operating_rounds: 3,
-          },
-          {
-            name: '3.2',
-            on: '5+5',
-            train_limit: { prussian: 3, major: 2 },
-            tiles: %i[yellow green brown],
-            status: %w[can_buy_trains lay_or_upgrade],
-            operating_rounds: 3,
-          },
-          {
-            name: '3.3',
-            on: '6',
-            train_limit: { prussian: 3, major: 2 },
-            tiles: %i[yellow green brown],
-            status: %w[can_buy_trains lay_or_upgrade],
-            operating_rounds: 3,
-          },
-          {
-            name: '3.4',
-            on: '6+6',
-            train_limit: { prussian: 3, major: 2 },
+            train_limit: { minor: 0, major: 2, prussian: 3 },
             tiles: %i[yellow green brown],
             status: %w[can_buy_trains lay_or_upgrade],
             operating_rounds: 3,
@@ -196,12 +148,10 @@ module Engine
             corp.shares.reject(&:president).each { |share| share.double_cert = (share.percent == 20) }
           end
 
-          @draft_finished = false
-
           @draft_round_num = 1
           @preussen_may_float = false
 
-          @corporations.select { |corp| corp.type == :major }.each do |corp|
+          @corporations.select { |corp| major?(corp) }.each do |corp|
             @stock_market.set_par(corp, @stock_market.par_prices.find { |share_price| share_price.price == PAR_PRICES[corp.id] })
           end
 
@@ -230,12 +180,12 @@ module Engine
         end
 
         def new_draft_round
-          G1835::Round::Draft.new(self,
-                                  [G1835::Step::Draft],)
+          @log << "-- #{round_description('Draft')} --"
+          init_round
         end
 
         def next_round!
-          return super if @draft_finished
+          return super if all_drafted?
 
           clear_programmed_actions
           @round =
@@ -258,7 +208,7 @@ module Engine
             G1835::Step::SpecialToken,
             Engine::Step::Track,
             Engine::Step::HomeToken,
-            Engine::Step::Token,
+            G1835::Step::Token,
             Engine::Step::Route,
             G1835::Step::Dividend,
             G1835::Step::BuyTrain,
@@ -272,8 +222,12 @@ module Engine
           ])
         end
 
+        def all_drafted?
+          companies.all? { |c| c.owner || c.closed? }
+        end
+
         def bundles_for_corporation(share_holder, corporation, shares: nil)
-          return super if share_holder.player? && corporation.type == :major
+          return super if share_holder.player? && major?(corporation)
 
           []
         end
@@ -293,7 +247,7 @@ module Engine
         def cert_limit(player = nil)
           return @cert_limit unless player
 
-          @cert_limit + @corporations.count { |corporation| corporation.type == :major && player.percent_of(corporation) >= 80 }
+          @cert_limit + @corporations.count { |corporation| major?(corporation) && player.percent_of(corporation) >= 80 }
         end
 
         def corporation_available?(corp)
@@ -340,7 +294,7 @@ module Engine
         end
 
         def tile_lays(entity)
-          return TWO_LAYS if entity.type == :major && @phase.status.include?('two_tile_lays')
+          return TWO_LAYS if major?(entity) && @phase.status.include?('two_tile_lays')
 
           LAY_OR_UPGRADE
         end
@@ -361,6 +315,10 @@ module Engine
 
           # PR has already been formed and not all minors/companies have been converted yet
           prussian.floated? && !prussian_exchangeables.reject(&:closed?).empty?
+        end
+
+        def major?(corporation)
+          corporation.type == :major || corporation.type == :prussian
         end
 
         def prussian
