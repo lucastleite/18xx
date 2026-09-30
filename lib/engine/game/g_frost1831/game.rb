@@ -285,9 +285,11 @@ module Engine
             execute_deferred_turmoil! unless @pending_influence_choice
           end
 
-          # First D purchased triggers game end (unless bank_only_endgame variant is active)
-          # BUT only if bank hasn't already broken (bank trigger takes priority if it happened first)
-          if first_d && !@bank_broken_trigger && !bank_only_endgame?
+          # First D purchased triggers game end only for legacy :d_train_endgame games
+          # BUT only if bank hasn't already broken (bank trigger takes priority if it happened first).
+          # Only legacy games flagged with :d_train_endgame end on the first D train;
+          # all new games end only when the bank breaks.
+          if first_d && !@bank_broken_trigger && d_train_endgame?
             @d_train_bought = true
             # Truncate remaining ORs - go to SR after current OR ends
             @operating_rounds = @round.round_num if @round.is_a?(Engine::Round::Operating)
@@ -311,11 +313,12 @@ module Engine
           @d_train_bought
         end
 
-        # Override to remove custom (D train) trigger when bank_only_endgame variant is active
+        # By default the game ends only when the bank breaks. Only legacy games
+        # flagged with :d_train_endgame keep the custom (first D train) trigger.
         def game_end_check_values
-          return { bank: :full_or } if bank_only_endgame?
+          return self.class::GAME_END_CHECK if d_train_endgame?
 
-          self.class::GAME_END_CHECK
+          { bank: :full_or }
         end
 
         def game_ending_description
@@ -1720,8 +1723,11 @@ module Engine
           @optional_rules&.include?(:extra_train)
         end
 
-        def bank_only_endgame?
-          @optional_rules&.include?(:bank_only_endgame)
+        # Legacy flag: games created before the endgame change still end on the
+        # first D train purchase. New games are never given this flag, so they
+        # end only when the bank breaks.
+        def d_train_endgame?
+          @optional_rules&.include?(:d_train_endgame)
         end
 
         # === Faction Support Cards & Influence Cubes ===

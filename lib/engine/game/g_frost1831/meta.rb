@@ -42,9 +42,13 @@ module Engine
             desc: 'Add one additional 3-train to the game (6 total instead of 5)',
           },
           {
-            sym: :bank_only_endgame,
-            short_name: 'Bank Break Only',
-            desc: 'Game ends only when bank breaks (first D train purchase does not trigger end)',
+            # Legacy flag, not selectable when creating a game. Games created
+            # before the endgame change carry this so they still end on the first
+            # D train purchase. New games end only when the bank breaks.
+            sym: :d_train_endgame,
+            short_name: 'D Train Endgame (legacy)',
+            desc: 'Game ends on the first D train purchase (legacy games only)',
+            hidden: true,
           },
         ].freeze
       end
