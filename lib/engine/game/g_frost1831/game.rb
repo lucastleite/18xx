@@ -2701,8 +2701,10 @@ module Engine
           raise GameError, 'Regulation is locked' if reg[:locked]
 
           faction = current_proposer_faction
+          from_label = REGULATION_LABELS[reg[:position]]
           move_regulation(reg_id, direction)
-          @log << "#{entity.name} (#{faction.name}) votes #{reg_id}. #{reg[:name]}: #{REGULATION_LABELS[reg[:position]]}"
+          @log << "#{entity.name} (#{faction.name}) votes #{reg_id}. #{reg[:name]}: "\
+                  "#{from_label} -> #{REGULATION_LABELS[reg[:position]]}"
 
           # Move to vote phase, start with next voter after proposer
           @voting_phase = :vote
@@ -2746,11 +2748,12 @@ module Engine
           end
 
           faction_influence_lose(faction_sym)
+          reg = @regulations[@current_voting_regulation_id]
+          from_label = REGULATION_LABELS[reg[:position]]
           move_regulation(@current_voting_regulation_id, direction)
 
-          reg = @regulations[@current_voting_regulation_id]
           @log << "#{entity.name} (#{faction.name}) votes #{@current_voting_regulation_id}. #{reg[:name]}: "\
-                  "#{REGULATION_LABELS[reg[:position]]} (spends 1 Influence)"
+                  "#{from_label} -> #{REGULATION_LABELS[reg[:position]]} (spends 1 Influence)"
 
           # Reset consecutive passes (someone voted)
           @voting_passed_consecutive = []
