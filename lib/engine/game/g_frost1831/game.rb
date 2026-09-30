@@ -1730,6 +1730,13 @@ module Engine
           @optional_rules&.include?(:d_train_endgame)
         end
 
+        # Legacy flag: games created before this change auto-pick the 2nd
+        # supported faction when only one option is left. New games always
+        # require the player to make the 2nd choice manually.
+        def auto_second_faction?
+          @optional_rules&.include?(:auto_second_faction)
+        end
+
         # === Faction Support Cards & Influence Cubes ===
 
         OPPOSITES = {

@@ -111,9 +111,11 @@ module Engine
               @game.pending_faction_choices.last[:step] = :second
               @game.pending_faction_choices.last[:first_choice] = choice
 
-              # Check if second choice is automatic (using same logic as UI)
+              # Legacy games auto-pick the 2nd faction when only one option is
+              # left. New games always ask the player, since the silent
+              # auto-pick (which can also pass the turn) confused players.
               available_second = available_for_second
-              if available_second.size == 1
+              if @game.auto_second_faction? && available_second.size == 1
                 # Automatic second choice
                 second = available_second.first
                 @game.consume_faction_support(second)

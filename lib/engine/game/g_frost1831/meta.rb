@@ -54,6 +54,15 @@ module Engine
             desc: 'Game ends on the first D train purchase (legacy games only)',
             hidden: true,
           },
+          {
+            # Legacy flag, not selectable when creating a game. Games created
+            # before this change auto-pick the 2nd supported faction when only
+            # one option remains. New games always ask the player to choose.
+            sym: :auto_second_faction,
+            short_name: 'Auto 2nd Faction (legacy)',
+            desc: 'Automatically pick the 2nd supported faction when only one option remains (legacy games only)',
+            hidden: true,
+          },
         ].freeze
       end
     end
