@@ -1543,10 +1543,9 @@ module Engine
 
           # Filter to stations where governing faction doesn't already have a base
           eligible = stations.select do |token|
-            hex = token.hex
-            next false unless hex
-
-            city = hex.tile.cities.first
+            # Use the token's actual city, not the hex's first city. Hexes with
+            # multiple cities would otherwise resolve to the wrong city.
+            city = token.city
             next false unless city
             next false if city.tokens.any? { |t| t&.corporation == gov_faction }
 
@@ -1573,14 +1572,16 @@ module Engine
 
         def place_turmoil_base(corporation, corp_token, faction)
           hex = corp_token.hex
+          # Capture the exact city the corp token occupies before destroying it.
+          # On multi-city hexes this must not fall back to the hex's first city.
+          city = corp_token.city
 
           # Permanently remove corporation token from the game
           corp_token.destroy!
 
           # Place faction base — skip the base token (index 0), use additional markers
           faction_token = faction.tokens[1..].find { |t| !t.used }
-          if faction_token
-            city = hex.tile.cities.first
+          if faction_token && city
             city.place_token(faction, faction_token, check_tokenable: false)
             # Faction value increases when a marker is placed (removed from parliament pool)
             @stock_market.move_right(faction)
