@@ -69,6 +69,12 @@ module Engine
           def process_buy_train(action)
             check_spend(action)
             buy_train_action(action)
+
+            # Train events (Blizzard, close_companies, ...) have all run by now.
+            # If the Blizzard eliminated the operating corporation, close it here
+            # so the operating turn only advances after the whole resolution.
+            @game.flush_pending_eliminations!
+
             pass! if !can_buy_train?(action.entity) &&
                      !@game.can_upgrade_to_diamond?(action.entity) &&
                      pass_if_cannot_buy_train?(action.entity)

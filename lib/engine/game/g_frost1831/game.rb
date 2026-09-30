@@ -1597,6 +1597,10 @@ module Engine
           @pending_turmoil = nil
         end
 
+        # Tiles that survive a blizzard: green and above. White (unbuilt) and
+        # yellow tiles inside the blizzard zone lose their stations.
+        BLIZZARD_SURVIVING_COLORS = %i[green brown gray].freeze
+
         def event_blizzard!
           @log << '-- Event: Blizzard! --'
 
@@ -1606,15 +1610,18 @@ module Engine
           destroyed_tokens = []
 
           affected_hexes.each do |hex|
-            yellow_tile = hex.tile
+            tile = hex.tile
 
-            # Only affect yellow tiles
-            next unless yellow_tile.color == :yellow
+            # Inside the blizzard zone a station only survives if it sits on a
+            # green (or higher) tile. Tokens on unbuilt (white) or yellow tiles
+            # are destroyed. At the first 5-train no brown/gray tiles exist yet,
+            # so in practice this means white and yellow are wiped.
+            next if BLIZZARD_SURVIVING_COLORS.include?(tile.color)
 
-            # Collect tokens to destroy before downgrade
+            # Collect tokens to destroy before any downgrade removes them.
             tokens_to_destroy = []
-            yellow_tile.cities.each do |city|
-              city.tokens.each_with_index do |token, _idx|
+            tile.cities.each do |city|
+              city.tokens.each do |token|
                 next unless token
 
                 tokens_to_destroy << token
@@ -1622,22 +1629,23 @@ module Engine
               end
             end
 
-            # Remove the yellow tile (downgrade to original/blank)
-            removed_tiles << hex.name
-            hex.lay_downgrade(hex.original_tile)
+            # Only yellow tiles have track to remove; white/base tiles stay as
+            # they are (there is no built tile to downgrade).
+            if tile.color == :yellow
+              removed_tiles << hex.name
+              hex.lay_downgrade(hex.original_tile)
 
-            # Return the yellow tile to stock
-            @tiles << yellow_tile
+              # Return the yellow tile to stock
+              @tiles << tile
 
-            # Remove influence cubes from restored tile if already collected
-            if @influence_cubes_collected.include?(hex.id)
-              hex.tile.icons.reject! { |icon| icon.name == 'influence_cube' }
+              # Remove influence cubes from restored tile if already collected
+              if @influence_cubes_collected.include?(hex.id)
+                hex.tile.icons.reject! { |icon| icon.name == 'influence_cube' }
+              end
             end
 
             # Permanently remove tokens from the game
-            tokens_to_destroy.each do |token|
-              token.destroy!
-            end
+            tokens_to_destroy.each(&:destroy!)
           end
 
           # Remove blizzard icons from all affected hexes
@@ -1651,14 +1659,49 @@ module Engine
           # Check if any corporation lost ALL stations → close it.
           # Corps start with 3 tokens. If tokens.size < 3 and none are used,
           # it means the corp had placed tokens that were destroyed.
-          @corporations.select { |c| c.type != :faction && !c.closed? && c.floated? }.each do |corp|
-            next if corp.tokens.any?(&:used)
-            next unless corp.tokens.size < 3
+          eliminated = @corporations.select do |c|
+            next false if c.type == :faction || c.closed? || !c.floated?
+            next false if c.tokens.any?(&:used)
 
+            c.tokens.size < 3
+          end
+
+          # Resolve the eliminations atomically. close_corporation calls
+          # force_next_entity! for the currently-operating corp, which would
+          # advance the operating turn (logging "X operates ...") in the middle
+          # of the Blizzard. Close the active corporation LAST so the whole
+          # Blizzard (token loss, train removal, other closures) resolves before
+          # the turn moves on.
+          active = @round&.respond_to?(:current_entity) ? @round.current_entity : nil
+          inactive, still_active = eliminated.partition { |c| c != active }
+
+          inactive.each do |corp|
             @log << "#{corp.name} has no remaining stations — corporation is eliminated!"
             close_corporation(corp, quiet: true)
             on_corporation_eliminated(corp)
           end
+
+          # The currently-operating corp cannot be closed inline: close_corporation
+          # calls force_next_entity! for the active corp, which would advance the
+          # operating turn (logging "X operates ...") before the remaining train
+          # events (e.g. close_companies) have run. Run its elimination side effect
+          # now (train removal) but defer the actual close/turn-advance until all
+          # train events finish (see flush_pending_eliminations!).
+          still_active.each do |corp|
+            @log << "#{corp.name} has no remaining stations — corporation is eliminated!"
+            on_corporation_eliminated(corp)
+            @pending_eliminations << corp
+          end
+        end
+
+        # Close any corporations whose elimination was deferred because they were
+        # the operating entity. Called after all train events have run so the
+        # turn only advances once the whole 5-train resolution is complete.
+        def flush_pending_eliminations!
+          return if @pending_eliminations.empty?
+
+          @pending_eliminations.each { |corp| close_corporation(corp, quiet: true) }
+          @pending_eliminations = []
         end
 
         def parliament_open?
@@ -1732,6 +1775,7 @@ module Engine
           @favors_used = Hash.new(0)
           @favor_used_this_or = Hash.new(0)
           @corporations_eliminated_count = 0
+          @pending_eliminations = []
 
           # Create hidden INF company (Use Influence) — not in auction
           create_influence_company
