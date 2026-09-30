@@ -13,6 +13,15 @@ module Engine
             super
           end
 
+          # In forced purchase (2nd favor this OR while trainless), the corp may
+          # only buy from the depot — never from another player's corporation.
+          def buyable_trains(entity)
+            trains = super
+            return trains unless @game.depot_only_train_purchase?(entity)
+
+            trains.select(&:from_depot?)
+          end
+
           def log_skip(entity)
             return if entity.type == :faction
 

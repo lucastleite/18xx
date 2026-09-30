@@ -2921,6 +2921,15 @@ module Engine
             corporation.cash < cheapest_depot_train_price
         end
 
+        # Once a trainless corp requests its 2nd favor this OR it is in forced
+        # purchase: it may only buy a train from the depot (bank pool), never
+        # from another player's corporation.
+        def depot_only_train_purchase?(corporation)
+          return false unless corporation.corporation? && corporation.type != :faction
+
+          must_buy_train?(corporation) && @favor_used_this_or[corporation.id] >= 2
+        end
+
         def cheapest_depot_train_price
           @depot.min_depot_train&.price || 0
         end
