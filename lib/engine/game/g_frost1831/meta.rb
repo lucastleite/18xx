@@ -37,9 +37,13 @@ module Engine
             desc: 'All regulations start at Tight position (R1-R4 = 2)',
           },
           {
+            # Legacy flag, no longer selectable when creating a game. Existing
+            # games that were created with it keep the extra 3-train; new games
+            # cannot choose it.
             sym: :extra_train,
-            short_name: 'Extra 3-Train',
+            short_name: 'Extra 3-Train (legacy)',
             desc: 'Add one additional 3-train to the game (6 total instead of 5)',
+            hidden: true,
           },
           {
             # Legacy flag, not selectable when creating a game. Games created
