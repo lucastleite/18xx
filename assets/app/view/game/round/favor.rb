@@ -83,15 +83,11 @@ module View
           buttons = []
           favor_company = @game.favor_company
 
-          # On 2nd+ favor (forced), need 2+ cubes of same faction to pay with cube
-          min_influence = @forced ? 2 : 1
-
           corp_factions.each do |faction_sym|
-            next unless (corp_influence[faction_sym] || 0) >= min_influence
+            next unless (corp_influence[faction_sym] || 0) >= 1
 
             penalty = @game.favor_market_penalty(corporation, faction, faction_sym)
-            extra_label = @forced ? ' +1◆ extra' : ''
-            btn_text = "Spend #{@game.faction_display_name(faction_sym)} Influence (←#{penalty})#{extra_label}"
+            btn_text = "Spend #{@game.faction_display_name(faction_sym)} Influence (←#{penalty})"
 
             apply = lambda do
               process_action(Engine::Action::Choose.new(favor_company,

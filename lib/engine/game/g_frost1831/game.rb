@@ -2878,21 +2878,6 @@ module Engine
             end
           end
 
-          # Extra influence charge on 2nd+ favor this OR
-          if @favor_used_this_or[corporation.id] >= 1 && with_influence_to
-            @corporation_influence[corporation.id] ||= {}
-            if (@corporation_influence[corporation.id][with_influence_to] || 0).positive?
-              @corporation_influence[corporation.id][with_influence_to] -= 1
-              limit = faction_influence_limit
-              if @faction_influence[faction.id] < limit
-                @faction_influence[faction.id] += 1
-                @log << "#{corporation.name} pays extra Influence from #{with_influence_to} (2nd+ favor this OR)" unless silent
-              else
-                @log << "#{corporation.name} pays extra Influence (Influence returned, Parliament at limit)" unless silent
-              end
-            end
-          end
-
           old_faction_price = faction.share_price
           @stock_market.move_right(faction)
           faction.par_price = faction.share_price
