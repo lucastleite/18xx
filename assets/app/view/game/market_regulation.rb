@@ -15,8 +15,8 @@ module View
                   tight: '£20 any' },
         'R3' => { name: 'R3. Corp Limit', loose: '70%', normal: '60%',
                   tight: '50%' },
-        'R4' => { name: 'R4. Favor', loose: '-2 / -2 / -3', normal: '-2 / -3 / -4',
-                  tight: '-3 / -4 / -4' },
+        'R4' => { name: 'R4. Favor', loose: '-2 / -3', normal: '-2 / -4',
+                  tight: '-3 / -4' },
       }.freeze
 
       def render

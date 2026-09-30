@@ -2832,22 +2832,17 @@ module Engine
           end
         end
 
-        def favor_market_penalty(corporation, faction, with_influence_to)
+        def favor_market_penalty(_corporation, _faction, with_influence_to)
           r4 = regulation_value('R4')
 
-          if with_influence_to == faction.id
+          # Spending an influence cube costs the same regardless of which faction
+          # it comes from; only paying without a cube is more expensive.
+          if with_influence_to
             case r4
             when 0 then 2
             when 1 then 2
             when 2 then 3
             else 2
-            end
-          elsif with_influence_to && with_influence_to != faction.id
-            case r4
-            when 0 then 2
-            when 1 then 3
-            when 2 then 4
-            else 3
             end
           else
             case r4
