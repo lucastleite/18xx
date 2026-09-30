@@ -13,7 +13,6 @@ module Engine
           'D15' => 'Plymouth',
           'E8' => 'Slippery Plateau',
           'E14' => 'Coal Route',
-          'G8' => 'Ashford',
           'G10' => 'Dead Lake',
           'G14' => 'South Coal Mine',
           'H3' => 'Old Tunnel',
