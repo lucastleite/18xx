@@ -1089,6 +1089,9 @@ module Engine
         self.class::LAYOUT
       end
 
+      # Extra top-level game tabs, beside the default Game/Entities/Map/Market tabs.
+      # Games return an array of { title:, anchor:, klass:, key: } describing each tab;
+      # the view renders them generically. Empty by default.
       def extra_game_tabs
         []
       end
@@ -3303,6 +3306,9 @@ module Engine
 
       def corporation_size_name(_entity); end
 
+      # Extra spreadsheet columns for games that track per-corporation data beyond the
+      # standard set. Headers may be a String or { title:, sort_key: }; data is one value
+      # per extra header, in order. Both empty by default.
       def spreadsheet_extra_headers
         []
       end
@@ -3311,6 +3317,8 @@ module Engine
         []
       end
 
+      # Extra phase-table columns (Game Info tab) for games that show per-phase data beyond
+      # the standard set. Both empty by default.
       def phase_extra_headers
         []
       end
