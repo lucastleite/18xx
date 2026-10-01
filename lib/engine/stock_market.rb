@@ -219,9 +219,5 @@ module Engine
       @par_prices.delete(price)
       price.remove_par!
     end
-
-    def consume_unique_bonus(price)
-      price.types.delete(:pays_unique_bonus)
-    end
   end
 end
