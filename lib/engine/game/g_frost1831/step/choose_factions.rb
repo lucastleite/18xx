@@ -47,9 +47,9 @@ module Engine
             'Choose Faction to Support'
           end
 
-          # Tell the view to render the arena below the choice buttons
-          def show_arena?
-            true
+          # Panels shown below the choice buttons: the influence arena (mini).
+          def extra_choice_components
+            [[View::Game::GFrost1831::InfluenceArena, { game: @game, scale: 0.67 }]]
           end
 
           # Tell the view to use faction icons instead of text buttons

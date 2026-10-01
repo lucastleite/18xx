@@ -3,7 +3,7 @@
 require 'lib/settings'
 require 'view/game/corporation'
 require 'view/game/g_frost1831/influence_arena'
-require 'view/game/market_regulation'
+require 'view/game/g_frost1831/market_regulation'
 
 module View
   module Game

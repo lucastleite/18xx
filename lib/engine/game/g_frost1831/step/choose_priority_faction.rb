@@ -60,12 +60,12 @@ module Engine
             true
           end
 
-          def show_arena?
-            true
-          end
-
-          def show_market_regulation?
-            true
+          # Panels shown below the choice buttons: the influence arena (mini) and,
+          # when the game tracks them, the market-regulation table.
+          def extra_choice_components
+            components = [[View::Game::GFrost1831::InfluenceArena, { game: @game, scale: 0.67 }]]
+            components << [View::Game::GFrost1831::MarketRegulation, { game: @game }] if @game.respond_to?(:regulations)
+            components
           end
 
           def process_choose(action)

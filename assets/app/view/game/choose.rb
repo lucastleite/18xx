@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require 'view/game/actionable'
-require 'view/game/influence_arena'
-require 'view/game/market_regulation'
 require 'lib/settings'
 
 module View
@@ -53,15 +51,13 @@ module View
           children << h(:div, { style: { marginTop: '0.5rem' } }, paragraphs)
         end
 
-        # Show mini arena if step requests it (e.g., ChooseFactions in Frost 1831)
-        if step.respond_to?(:show_arena?) && step.show_arena?
-          children << h(InfluenceArena, game: @game, scale: 0.67)
-        end
-
-        # Show market regulation if step requests it (e.g., ChoosePriorityFaction)
-        if step.respond_to?(:show_market_regulation?) && step.show_market_regulation? &&
-           @game.respond_to?(:regulations)
-          children << h(MarketRegulation, game: @game)
+        # Extra panels the step wants shown below the choices (e.g. an influence
+        # arena or a market-regulation table). The step returns an array of
+        # [component_class, props] pairs; the core just renders them.
+        if step.respond_to?(:extra_choice_components)
+          step.extra_choice_components.each do |component, props|
+            children << h(component, props)
+          end
         end
 
         h(:div, children)
