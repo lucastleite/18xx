@@ -454,7 +454,7 @@ module View
         if !(%w[place_token lay_tile remove_token] & current_entity_actions).empty?
           h(Game::Map, game: @game)
         else
-          h(Game::Round::Stock, game: @game)
+          h(round_view(Game::Round::Stock), game: @game)
         end
       when Engine::Round::Operating
         if @round.respond_to?(:favor_mode) && @round.favor_mode
@@ -462,11 +462,11 @@ module View
         elsif current_entity_actions.include?('merge')
           h(Game::Round::Merger, game: @game)
         elsif current_entity_actions.include?('buy_shares') && @game.current_entity&.player?
-          h(Game::Round::Stock, game: @game)
+          h(round_view(Game::Round::Stock), game: @game)
         elsif current_entity_actions.include?('bid')
           h(Game::Round::Auction, game: @game, user: @user)
         else
-          h(Game::Round::Operating, game: @game)
+          h(round_view(Game::Round::Operating), game: @game)
         end
       when Engine::Round::Choices
         if @round.respond_to?(:voting?) && @round.voting?
@@ -495,6 +495,12 @@ module View
 
     def hotseat_or_master
       @game_data[:mode] == :hotseat || Lib::Storage[@game.id]&.dig('master_mode')
+    end
+
+    # Lets a game swap in its own round view (e.g. an operating round that adds
+    # extra panels) in place of the default one. Falls back to the default.
+    def round_view(default_class)
+      (@game.respond_to?(:round_view_class) && @game.round_view_class(default_class)) || default_class
     end
 
     def render_game

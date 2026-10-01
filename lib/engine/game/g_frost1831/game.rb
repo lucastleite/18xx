@@ -1254,6 +1254,15 @@ module Engine
           [{ title: 'P|arliament', anchor: 'parliament', klass: View::Game::GFrost1831::Parliament, key: 'p' }]
         end
 
+        # Swap the generic operating/stock round views for the Frost ones, which add
+        # the influence chooser, the faction cost table and the intervention map.
+        def round_view_class(default_class)
+          case default_class.to_s
+          when 'View::Game::Round::Operating' then View::Game::GFrost1831::Round::Operating
+          when 'View::Game::Round::Stock' then View::Game::GFrost1831::Round::Stock
+          end
+        end
+
         def ipo_name(entity = nil)
           return 'Parliament' if entity&.type == :faction
 
