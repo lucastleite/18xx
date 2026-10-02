@@ -200,6 +200,25 @@ ORDER BY action_id;
 SELECT * FROM actions WHERE game_id = GAME_ID AND action_id = ACTION_ID;
 ```
 
+### Avaliar / validar uma jogada (range 4 antes a 5 depois) — jogo único
+
+Quando o usuário pedir "avaliar jogada X do jogo Y" ou "validar jogo Y acao X"
+(validar e avaliar são sinônimos aqui), mostrar o range `X-4` até `X+5`
+em um único jogo:
+
+```sql
+SELECT action_id, action->>'type' as type, action->>'entity' as entity, action
+FROM actions
+WHERE game_id = GAME_ID AND action_id BETWEEN ACTION_ID-4 AND ACTION_ID+5
+ORDER BY action_id;
+```
+
+Rodando no banco local (Docker):
+
+```bash
+docker exec 18xx-db-1 psql -U root -d 18xx_development -c "SELECT action_id, action->>'type' as type, action->>'entity' as entity, action FROM actions WHERE game_id = GAME_ID AND action_id BETWEEN ACTION_ID-4 AND ACTION_ID+5 ORDER BY action_id;"
+```
+
 ### Comparar ações entre jogos (range de 5 antes a 5 depois)
 
 Quando pedir para ver uma ação X de múltiplos jogos, sempre mostrar o range X-5 até X+5:
@@ -368,7 +387,158 @@ console.log(`Ação inserida na posição ${posicao}. Recarregue a página.`);
 
 **Nota:** No hotseat, a ordem do array determina a sequência de processamento. O `id` da ação não importa.
 
-### Online (Banco de Dados - Railway/PostgreSQL)
+### Online (Banco de Dados) - Método Recomendado (negativar + voltar +1)
+
+Forma mais rápida de inserir uma ação no meio. Em vez de empurrar linha a linha,
+joga o bloco de action_ids pra negativo (sem colidir com os positivos existentes),
+traz de volta deslocado em +1 e insere a nova ação. Os timestamps da nova ação
+vêm da ação anterior via subselect, sem passo manual.
+
+**Dados necessários antes de gerar os comandos:**
+- `GAME_ID` - id do jogo
+- `POSICAO` - action_id onde inserir
+- Tipo da ação e campos (ex: `pass` da corp GJ)
+- `USER_ID` - id do dono da ação. **Se o usuário não informar, PERGUNTAR antes de
+  gerar o INSERT. Nunca chutar nem omitir o user_id.** (Exceção: ao copiar uma
+  ação existente, o user_id vem da origem via subselect e não precisa perguntar.)
+
+**Formato de saída:** gerar cada comando em um bloco ```sql separado (um por passo),
+pra o usuário conseguir copiar individualmente pelo botão de copiar do bloco. Não
+juntar tudo num bloco só.
+
+Não precisa descobrir o MAX antes: os comandos usam `>= POSICAO` e `<= -POSICAO`,
+que pegam o bloco inteiro independente do valor máximo.
+
+**Passo 1 — jogar da POSICAO em diante pra negativo** (evita conflito de unique key):
+
+```sql
+UPDATE actions SET action_id = -action_id WHERE game_id = GAME_ID AND action_id >= POSICAO;
+```
+
+**Passo 2 — trazer de volta deslocado +1:**
+
+```sql
+UPDATE actions SET action_id = (-action_id) + 1 WHERE game_id = GAME_ID AND action_id <= -POSICAO;
+```
+
+**Passo 3 — inserir a nova ação** (user_id e timestamps vêm da ação anterior via subselect):
+
+```sql
+INSERT INTO actions (game_id, user_id, action_id, action, created_at, updated_at)
+SELECT GAME_ID, USER_ID, POSICAO, '{"type": "TIPO", "entity": "ENTIDADE"}'::jsonb, created_at, updated_at
+FROM actions WHERE game_id = GAME_ID AND action_id = POSICAO-1;
+```
+
+**Passo 4 — corrigir ações de undo/redo** cujo alvo (`action->>'action_id'`) >= POSICAO:
+
+```sql
+UPDATE actions
+SET action = jsonb_set(action, '{action_id}', to_jsonb((action->>'action_id')::int + 1))
+WHERE game_id = GAME_ID
+  AND action->>'type' IN ('undo','redo')
+  AND (action->>'action_id') ~ '^[0-9]+$'
+  AND (action->>'action_id')::int >= POSICAO;
+```
+
+**Notas:**
+- O passo 4 é necessário porque ações `undo`/`redo` guardam o `action_id` alvo
+  dentro do JSON; se não corrigir, elas apontam pra ação errada após o shift.
+- `pass` com corporation usa `{"type": "pass", "entity": "CORP_ID", "entity_type": "corporation"}`.
+- Fazer export/backup antes de remexer em muitas ações.
+
+#### Variação: inserir cópia de uma ação existente
+
+Quando o usuário pedir "inserir ação X igual a ação Y", a nova ação herda o
+`action` (JSON inteiro), `user_id` e timestamps da ação de origem via subselect.
+Nesse caso NÃO precisa perguntar user_id (vem da origem). Mesmos passos 1, 2 e 4
+do método recomendado; só o passo 3 muda:
+
+```sql
+INSERT INTO actions (game_id, user_id, action_id, action, created_at, updated_at)
+SELECT GAME_ID, user_id, NOVA_POSICAO, action, created_at, updated_at
+FROM actions WHERE game_id = GAME_ID AND action_id = ORIGEM;
+```
+
+### Deletar ação(ões) no meio do jogo (deletar + fechar buraco)
+
+Inverso da inserção. Deleta as ações e desloca tudo que vem depois pra trás,
+`N` a menos (sendo `N` a quantidade de ações removidas), mais o ajuste dos undos.
+
+**IMPORTANTE:** NÃO usar decremento direto (`SET action_id = action_id - N`),
+porque o Railway se perde. Usar o mesmo truque do negativo da inserção: manda todo
+mundo pra negativo e volta pra positivo já ajustado.
+
+Seja `N` o número de ações removidas e `PRIMEIRO_DEPOIS` o primeiro action_id
+após o bloco deletado.
+
+**Formato de saída:** um comando por bloco ```sql.
+
+**Passo 1 — deletar as ações** (ex: 582 e 583):
+
+```sql
+DELETE FROM actions WHERE game_id = GAME_ID AND action_id IN (582, 583);
+```
+
+**Passo 2 — mandar tudo de PRIMEIRO_DEPOIS em diante pra negativo:**
+
+```sql
+UPDATE actions SET action_id = -action_id WHERE game_id = GAME_ID AND action_id >= PRIMEIRO_DEPOIS;
+```
+
+**Passo 3 — voltar pra positivo já deslocado -N:**
+
+```sql
+UPDATE actions SET action_id = (-action_id) - N WHERE game_id = GAME_ID AND action_id <= -PRIMEIRO_DEPOIS;
+```
+
+**Passo 4 — corrigir undo/redo cujo alvo >= PRIMEIRO_DEPOIS, também -N:**
+
+```sql
+UPDATE actions
+SET action = jsonb_set(action, '{action_id}', to_jsonb((action->>'action_id')::int - N))
+WHERE game_id = GAME_ID
+  AND action->>'type' IN ('undo','redo')
+  AND (action->>'action_id') ~ '^[0-9]+$'
+  AND (action->>'action_id')::int >= PRIMEIRO_DEPOIS;
+```
+
+**Notas:**
+- Se um undo/redo apontava exatamente pra uma ação deletada, a referência fica
+  órfã; o passo 4 só mexe em alvos >= PRIMEIRO_DEPOIS. Avisar o usuário se houver
+  undo apontando pra ação deletada.
+
+### Trocar a ordem de duas ações (swap)
+
+Para trocar duas ações de posição (ex: a ação A vira a posição de B e vice-versa),
+usar uma posição negativa temporária pra liberar o slot e evitar colisão de unique key.
+São 3 comandos. Cada ação mantém o próprio `user_id` e `entity` (é só troca de posição).
+
+Sejam `A` e `B` os dois action_ids a trocar:
+
+**Passo 1 — tira A de cena (manda pra negativo):**
+
+```sql
+UPDATE actions SET action_id = -A WHERE game_id = GAME_ID AND action_id = A;
+```
+
+**Passo 2 — B passa a ser A:**
+
+```sql
+UPDATE actions SET action_id = A WHERE game_id = GAME_ID AND action_id = B;
+```
+
+**Passo 3 — a antiga A (negativa) vira B:**
+
+```sql
+UPDATE actions SET action_id = B WHERE game_id = GAME_ID AND action_id = -A;
+```
+
+**Notas:**
+- Se houver ações `undo`/`redo` apontando pra A ou B dentro do JSON
+  (`action->>'action_id'`), elas precisam ser corrigidas depois do swap.
+- Vale a mesma regra de formato: um comando por bloco ```sql pra copiar individualmente.
+
+### Online (Banco de Dados - Railway/PostgreSQL) - Método Antigo (empurrar linha a linha)
 
 **IMPORTANTE:** No PostgreSQL do Railway, só permite alterar 1 registro por vez devido a constraints de unique key. Por isso, para inserir uma ação no meio:
 
