@@ -2,7 +2,7 @@
 
 module Engine
   class SharePrice
-    attr_reader :coordinates, :price, :corporations, :can_par, :type, :types, :info
+    attr_reader :coordinates, :price, :corporations, :can_par, :type, :types, :info, :hide_value, :arrow
 
     TYPE_MAP = {
       'p' => :par,
@@ -33,6 +33,7 @@ module Engine
       'Z' => :pays_bonus_4,
       'S' => :share_split,
       'f' => :only_president,
+      'K' => :pays_unique_bonus,
     }.freeze
 
     # Types which are info only and shouldn't
@@ -45,6 +46,18 @@ module Engine
     def self.from_code(code, row, column, unlimited_types, multiple_buy_types: [])
       return nil if !code || code == ''
 
+      # Stage 1: Strip hide_value prefix
+      hide_value = code.start_with?('_')
+      code = code[1..] if hide_value
+
+      # Stage 2: Strip arrow override suffix
+      arrow = nil
+      if code =~ /!([dulrn])$/
+        arrow = ::Regexp.last_match(1)
+        code = code[0..-3]
+      end
+
+      # Stage 3: Existing regex parse (unchanged)
       m = code.match(/(\d*)([a-zA-Z]*)/)
       price = m[1].to_i
 
@@ -56,6 +69,8 @@ module Engine
 
       SharePrice.new([row, column],
                      price: price,
+                     hide_value: hide_value,
+                     arrow: arrow,
                      info: nil,
                      types: types,
                      unlimited_types: unlimited_types,
@@ -65,11 +80,15 @@ module Engine
     def initialize(coordinates,
                    price:,
                    info: nil,
+                   hide_value: false,
+                   arrow: nil,
                    types: [],
                    unlimited_types: [],
                    multiple_buy_types: [])
       @coordinates = coordinates
       @price = price
+      @hide_value = hide_value
+      @arrow = arrow
       @type = types&.first
       @types = types
       @corporations = []

@@ -1089,6 +1089,13 @@ module Engine
         self.class::LAYOUT
       end
 
+      # Extra top-level game tabs, beside the default Game/Entities/Map/Market tabs.
+      # Games return an array of { title:, anchor:, klass:, key: } describing each tab;
+      # the view renders them generically. Empty by default.
+      def extra_game_tabs
+        []
+      end
+
       def axes
         @axes ||=
           if (axes = self.class::AXES)
@@ -1739,6 +1746,13 @@ module Engine
 
       def graph_for_entity(_entity)
         @graph
+      end
+
+      # Graph used for tile laying connectivity checks
+      # By default same as graph_for_entity, but games can override
+      # (e.g., to ignore special train abilities that only apply to routes)
+      def tile_lay_graph_for_entity(entity)
+        graph_for_entity(entity)
       end
 
       def token_graph_for_entity(_entity)
@@ -3291,6 +3305,27 @@ module Engine
       end
 
       def corporation_size_name(_entity); end
+
+      # Extra spreadsheet columns for games that track per-corporation data beyond the
+      # standard set. Headers may be a String or { title:, sort_key: }; data is one value
+      # per extra header, in order. Both empty by default.
+      def spreadsheet_extra_headers
+        []
+      end
+
+      def spreadsheet_extra_data(_corporation)
+        []
+      end
+
+      # Extra phase-table columns (Game Info tab) for games that show per-phase data beyond
+      # the standard set. Both empty by default.
+      def phase_extra_headers
+        []
+      end
+
+      def phase_extra_data(_phase)
+        []
+      end
 
       def company_status_str(_company); end
 

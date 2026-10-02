@@ -35,7 +35,8 @@ module View
           children = []
         else
           children = @game.train_power? ? power : trains
-          children.concat(discarded_trains)
+          # Only show bank pool section if trains can be discarded there
+          children.concat(discarded_trains) if @game.discarded_train_placement == :discard
         end
         if @game.phase_valid?
           children.concat(phases)
@@ -43,8 +44,39 @@ module View
           children.concat(other_game_status)
         end
         children.concat(timeline) if timeline
+        children.concat(optional_rules) if optional_rules
         children.concat(endgame)
-        children << h(GameMeta, game: @game)
+        children << h(GameMeta, game: @game, show_optional_rules: false)
+      end
+
+      def optional_rules
+        return nil unless @game.game_instance?
+        return nil if @game.optional_rules.empty?
+
+        used_rules = @game.class::OPTIONAL_RULES.select do |o_r|
+          @game.optional_rules.include?(o_r[:sym])
+        end
+        return nil if used_rules.empty?
+
+        rows = used_rules.map do |o_r|
+          h(:tr, [
+            h('td.nowrap', o_r[:short_name]),
+            h(:td, o_r[:desc] || ''),
+          ])
+        end
+
+        [
+          h(:h3, 'Optional Rules'),
+          h(:table, { style: { marginTop: '0.3rem' } }, [
+            h(:thead, [
+              h(:tr, [
+                h(:th, 'Rule'),
+                h(:th, 'Effect'),
+              ]),
+            ]),
+            h(:tbody, rows),
+          ]),
+        ]
       end
 
       def timeline
@@ -81,6 +113,8 @@ module View
             },
           }
 
+          phase_extra_cells = @game.phase_extra_data(phase).map { |val| h(:td, val) }
+
           extra = []
           extra << h(:td, phase[:corporation_sizes].join(', ')) if corporation_sizes
           extra << h(:td, row_events) unless phases_events.empty?
@@ -92,6 +126,7 @@ module View
             h(:td, @game.info_on_trains(phase)),
             h(:td, phase[:operating_rounds]),
             h(:td, train_limit_to_h(phase[:train_limit])),
+            *phase_extra_cells,
             h(:td, phase_props, phase_color.capitalize),
             *extra,
           ])
@@ -100,6 +135,8 @@ module View
         status_text = phases_events.uniq.map do |short, long|
           h(:tr, [h('td.nowrap', { style: { maxWidth: '30vw' } }, short), h(:td, long)])
         end
+
+        phase_extra_th = @game.phase_extra_headers.map { |hdr| h(:th, hdr) }
 
         extra = []
         extra << h(:th, 'New Corporation Size') if corporation_sizes
@@ -128,6 +165,7 @@ module View
                   h(:th, { attrs: { title: "Number of #{@game.operation_round_name} Rounds" } },
                     @game.operation_round_short_name),
                   h(:th, @game.train_limit_header),
+                  *phase_extra_th,
                   h(:th, 'Tiles'),
                   *extra,
                 ]),

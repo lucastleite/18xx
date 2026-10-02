@@ -5,6 +5,7 @@ require 'view/game/bank'
 require 'view/game/buy_sell_shares'
 require 'view/game/company'
 require 'view/game/corporation'
+require 'view/game/map'
 require 'view/game/par'
 require 'view/game/par_chart'
 require 'view/game/players'
@@ -63,17 +64,25 @@ module View
           children = []
 
           children.concat(render_bankruptcy) if @current_actions.include?('bankrupt')
-          children << h(Choose) if @current_actions.include?('choose') && @step.choice_available?(@current_entity)
+          # Games may fully handle the choose section (and short-circuit the
+          # round view) by returning :halt; otherwise fall back to Choose.
+          if @current_actions.include?('choose') && @step.choice_available?(@current_entity) &&
+             render_choose_section(children) == :halt
+            return h(:div, children)
+          end
+
           children << h(FlexibleBuy) if @current_actions.include?('buy_shares') && @flexible_player
 
           if @step.respond_to?(:must_sell?) && @step.must_sell?(@current_entity)
             children << if @game.num_certs(@current_entity) > @game.cert_limit(@current_entity)
                           h('div.margined', 'Must sell stock: above certificate limit')
                         elsif @step.respond_to?(:must_sell_corporations)
-                          corps_over_limit = @step.must_sell_corporations(@current_entity).map(&:name).join(', ')
-                          h('div.margined', "Must sell stock: above 60% limit in #{corps_over_limit}")
+                          corps = @step.must_sell_corporations(@current_entity)
+                          limit = corps.first&.max_ownership_percent || 60
+                          corps_over_limit = corps.map(&:name).join(', ')
+                          h('div.margined', "Must sell stock: above #{limit}% limit in #{corps_over_limit}")
                         else
-                          h('div.margined', 'Must sell stock: above 60% limit in corporation(s)')
+                          h('div.margined', 'Must sell stock: above ownership limit in corporation(s)')
                         end
           end
 
@@ -104,6 +113,14 @@ module View
           children << h(StockMarket, game: @game, show_bank: true)
 
           h(:div, children)
+        end
+
+        # Renders the UI for a pending 'choose' action into children. Default adds
+        # the generic Choose. Games may override to render custom choosers; return
+        # :halt to short-circuit the rest of the round view.
+        def render_choose_section(children)
+          children << h(Choose)
+          nil
         end
 
         def render_company_pending_par

@@ -102,6 +102,9 @@ module View
           rendered_loc_name = render_tile_part(Part::LocationName)
         end
         @tile.reservations.each do |r|
+          # Skip external Reservation render if already shown inside a city slot
+          next if @tile.cities.any? { |c| c.reservations.include?(r) }
+
           children << render_tile_part(Part::Reservation, reservation: r) if @game.render_hex_reservation?(r)
         end
 

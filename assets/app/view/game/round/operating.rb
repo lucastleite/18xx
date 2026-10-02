@@ -58,11 +58,13 @@ module View
           left << h(ReassignTrains) if @current_actions.include?('reassign_trains')
           left << h(DoubleHeadTrains) if @current_actions.include?('double_head_trains')
           left << h(CombinedTrains) if @current_actions.include?('combined_trains')
-          left << h(Choose) if @current_actions.include?('choose')
+          left << h(choose_view) if @current_actions.include?('choose') && !@step.respond_to?(:faction_options_for_hex)
           left << h(BuyToken, entity: entity) if @current_actions.include?('buy_token')
 
           if @current_actions.include?('buy_train') || @current_actions.include?('sell_train')
             left << h(IssueShares) if @current_actions.include?('sell_shares') || @current_actions.include?('buy_shares')
+            left << h(BuyTrains)
+          elsif @current_actions.include?('choose') && @step.respond_to?(:diamond_upgrades_allowed?)
             left << h(BuyTrains)
           elsif @current_actions.include?('buy_power')
             left << h(IssueShares) if @current_actions.include?('sell_shares')
@@ -98,7 +100,8 @@ module View
           if entity.player?
             left << h(Player, player: entity, game: @game)
           elsif entity.operator? && entity.floated?
-            left << h(Corporation, corporation: entity)
+            left << h(Corporation, corporation: entity) if render_operating_corporation?
+            extra_entity_views(entity).each { |view| left << view }
             if @step.respond_to?(:show_other) && @step.show_other
               Array(@step.show_other).each { |other_corporation| left << h(Corporation, corporation: other_corporation) }
             end
@@ -149,6 +152,11 @@ module View
             style: {
               overflow: 'hidden',
               verticalAlign: 'top',
+              flexGrow: '1',
+              flexShrink: '1',
+              flexBasis: 'auto',
+              minWidth: '300px',
+              maxWidth: '430px',
             },
           }
 
@@ -156,15 +164,43 @@ module View
             style: {
               maxWidth: '100%',
               width: 'max-content',
+              flexShrink: '0',
+            },
+          }
+
+          # Use flex container that wraps - when map doesn't fit, it goes below and left expands
+          container_props = {
+            style: {
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '1rem',
             },
           }
 
           children = [
-            h('div#left.inline-block', left_props, left),
-            h('div#right.inline-block', right_props, right),
+            h('div#left', left_props, left),
+            h('div#right', right_props, right),
           ]
 
-          h(:div, children)
+          h(:div, container_props, children)
+        end
+
+        # Component rendered for a pending 'choose' action. Default is the generic
+        # Choose; games may override to show a custom chooser.
+        def choose_view
+          Choose
+        end
+
+        # Whether to render the operating corporation card. Games may override to
+        # hide it in specific states.
+        def render_operating_corporation?
+          true
+        end
+
+        # Extra views shown next to the operating corporation (e.g. a cost table).
+        # Empty by default; games may override.
+        def extra_entity_views(_entity)
+          []
         end
       end
     end

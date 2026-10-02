@@ -6,7 +6,7 @@ PRODUCTION = ENV['RACK_ENV'] == 'production'
 # outside production we use Cloudflare's always-pass test keys so local dev works
 # without registering a hostname. In production the real secret is required -- we
 # never fall back to the always-pass test secret.
-TURNSTILE_SITEKEY = PRODUCTION ? '0x4AAAAAADuTm2-bvPUtb2pz' : '1x00000000000000000000AA'
+TURNSTILE_SITEKEY = ENV.fetch('TURNSTILE_SITEKEY', PRODUCTION ? '0x4AAAAAADuTm2-bvPUtb2pz' : '1x00000000000000000000AA')
 raise 'TURNSTILE_SECRET must be set in production' if PRODUCTION && ENV['TURNSTILE_SECRET'].to_s.empty?
 
 TURNSTILE_SECRET = ENV['TURNSTILE_SECRET'] || '1x0000000000000000000000000000000AA'
@@ -126,8 +126,8 @@ class Api < Roda
   route do |r|
     unless PRODUCTION
       r.assets
-      r.public
     end
+    r.public
 
     r.hash_branches
 
@@ -149,6 +149,40 @@ class Api < Roda
 
       user.verify!
       r.redirect('/login?verified=1')
+    end
+
+    # TEMPORARY: manual email verification bypass for users who are not receiving
+    # the verification email (Cloudflare blocking). Accepts user ID, username or
+    # email as identifier. Remove this endpoint before merging to the official
+    # upstream repo.
+    r.get 'enable', String do |identifier|
+      target_user =
+        if identifier.match?(/\A\d+\z/)
+          User[identifier.to_i]
+        elsif identifier.include?('@')
+          User.by_email(identifier)
+        else
+          User[Sequel.function(:lower, :name) => identifier.downcase]
+        end
+
+      halt(404, 'User not found') unless target_user
+
+      target_user.settings['verified'] = true
+      target_user.save
+
+      { result: true, id: target_user.id, name: target_user.name }
+    end
+
+    # Set auto_routing for a game: /auto-routing/19/true or /auto-routing/19/false
+    r.get 'auto-routing', Integer, String do |game_id, enabled|
+      game = Game[game_id]
+      halt(404, 'Game not found') unless game
+
+      value = enabled.downcase == 'true'
+      game.settings['auto_routing'] = value
+      game.save
+
+      { result: true, game_id: game.id, auto_routing: value }
     end
 
     r.on 'profile' do

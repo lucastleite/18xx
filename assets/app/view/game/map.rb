@@ -2,12 +2,14 @@
 
 require '../lib/storage'
 require '../lib/settings'
+require 'lib/intervention_selector'
 require 'view/game/axis'
 require 'view/game/hex'
 require 'view/game/map_legend'
 require 'view/game/tile_confirmation'
 require 'view/game/tile_selector'
 require 'view/game/token_selector'
+require 'view/game/intervention_faction_selector'
 
 module View
   module Game
@@ -91,6 +93,8 @@ module View
             if @tile_selector.is_a?(Lib::TokenSelector)
               # 1882
               h(TokenSelector, zoom: map_zoom)
+            elsif @tile_selector.is_a?(Lib::InterventionSelector)
+              h(InterventionFactionSelector, zoom: map_zoom)
             elsif @tile_selector.role != :map
               # Tile selector not for the map
             elsif @tile_selector.hex.tile != @tile_selector.tile
