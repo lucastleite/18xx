@@ -454,23 +454,23 @@ module View
         if !(%w[place_token lay_tile remove_token] & current_entity_actions).empty?
           h(Game::Map, game: @game)
         else
-          h(round_view(Game::Round::Stock), game: @game)
+          h(round_view(:stock, Game::Round::Stock), game: @game)
         end
       when Engine::Round::Operating
         if @round.respond_to?(:favor_mode) && @round.favor_mode
-          h(Game::Round::Favor, game: @game)
+          h(round_view(:favor), game: @game)
         elsif current_entity_actions.include?('merge')
           h(Game::Round::Merger, game: @game)
         elsif current_entity_actions.include?('buy_shares') && @game.current_entity&.player?
-          h(round_view(Game::Round::Stock), game: @game)
+          h(round_view(:stock, Game::Round::Stock), game: @game)
         elsif current_entity_actions.include?('bid')
           h(Game::Round::Auction, game: @game, user: @user)
         else
-          h(round_view(Game::Round::Operating), game: @game)
+          h(round_view(:operating, Game::Round::Operating), game: @game)
         end
       when Engine::Round::Choices
         if @round.respond_to?(:voting?) && @round.voting?
-          h(Game::Round::Voting, game: @game)
+          h(round_view(:voting), game: @game)
         else
           h(Game::Round::Choices, game: @game)
         end
@@ -497,10 +497,11 @@ module View
       @game_data[:mode] == :hotseat || Lib::Storage[@game.id]&.dig('master_mode')
     end
 
-    # Lets a game swap in its own round view (e.g. an operating round that adds
-    # extra panels) in place of the default one. Falls back to the default.
-    def round_view(default_class)
-      (@game.respond_to?(:round_view_class) && @game.round_view_class(default_class)) || default_class
+    # Lets a game provide its own round view. The key identifies the round slot
+    # (:operating, :stock, :favor, :voting, ...). Falls back to default_class,
+    # which may be nil for slots that only exist in a specific game.
+    def round_view(key, default_class = nil)
+      (@game.respond_to?(:round_view_class) && @game.round_view_class(key)) || default_class
     end
 
     def render_game
