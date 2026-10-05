@@ -406,8 +406,9 @@ module View
 
           row = row_prices.each_with_index.map do |price, col_i|
             if price
-              # Invisible cell (hide_value + no types) renders as empty space
-              if price.hide_value && price.types.empty?
+              # Invisible cell (hide_value + no types + no arrow) renders as empty space.
+              # Cells carrying an arrow override must still fall through to the arrow logic.
+              if price.hide_value && price.types.empty? && !price.arrow
                 first_price = false
                 next h(:div, { style: @space_style_2d }, '')
               end
@@ -420,11 +421,11 @@ module View
               # first cell on left, not on bottom row, has price in cell below
               if first_price && !next_row.empty? && next_row[col_i]
                 align = { left: 0, bottom: 0 }
-                arrow = '⭣'
+                arrow = '↓'
               # last cell on right, not top row
               elsif !row_i.zero? && @game.stock_market.right_ledge?([row_i, col_i])
                 align = { right: 0, top: 0 }
-                arrow = '⭡'
+                arrow = '↑'
               else
                 align = {}
                 arrow = ''
@@ -435,16 +436,16 @@ module View
                 case price.arrow
                 when 'd'
                   align = { left: 0, bottom: 0 }
-                  arrow = '⭣'
+                  arrow = '↓'
                 when 'u'
                   align = { right: 0, top: 0 }
-                  arrow = '⭡'
+                  arrow = '↑'
                 when 'l'
                   align = { left: 0, bottom: 0 }
-                  arrow = '⭠'
+                  arrow = '←'
                 when 'r'
                   align = { right: 0, bottom: 0 }
-                  arrow = '⭢'
+                  arrow = '→'
                 when 'n'
                   align = {}
                   arrow = ''
