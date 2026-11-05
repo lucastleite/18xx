@@ -506,8 +506,12 @@ module View
       params
     end
 
+    LICENSED_TITLES = ['Frost 1831'].freeze
+
     def visible_games
-      @visible_games ||= (@production ? Engine::VISIBLE_GAMES : Engine::GAME_METAS).sort
+      all_games = (@production ? Engine::VISIBLE_GAMES : Engine::GAME_METAS).sort
+      force_mode = Lib::Params['force'] == 'true'
+      @visible_games ||= force_mode ? all_games : all_games.select { |g| LICENSED_TITLES.include?(g.title) }
     end
 
     def selected_game
@@ -521,6 +525,8 @@ module View
           else
             title = closest.title
           end
+
+          return nil unless LICENSED_TITLES.include?(title) || Lib::Params['force'] == 'true'
 
           Engine.meta_by_title(title)
         end
