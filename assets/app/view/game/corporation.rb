@@ -74,7 +74,7 @@ module View
             children << render_reserved
           end
           children << render_owned_other_shares unless @corporation.corporate_shares.empty?
-          children << h(Companies, owner: @corporation, game: @game) unless @corporation.companies.empty?
+          children << h(Companies, owner: @corporation, game: @game) unless @game.companies_sort(@corporation.companies).empty?
           if @game.respond_to?(:corporate_card_minors) && !(ms = @game.corporate_card_minors(@corporation)).empty?
             children << render_minors(ms)
           end
@@ -328,12 +328,26 @@ module View
           },
         }
 
-        tokens_body = @corporation.tokens.map.with_index do |token, i|
+        # For factions: only show the base token (index 0) + any additional tokens that are used.
+        # Unplaced additional tokens are hidden — they appear as tokens get placed on the map.
+        # For regular corporations: show all tokens as before.
+        tokens_to_show = if @corporation.type == :faction
+                           @corporation.tokens.each_with_index.select { |token, i| i.zero? || token.used }.map(&:first)
+                         else
+                           @corporation.tokens
+                         end
+
+        tokens_body = tokens_to_show.map.with_index do |token, i|
+          original_index = @corporation.tokens.index(token)
           token_text =
-            if i.zero? && @corporation.coordinates
+            if original_index.zero? && @corporation.coordinates && !token.used
               @corporation.coordinates.is_a?(Array) ? @corporation.coordinates.join('/') : @corporation.coordinates
+            elsif token.hex
+              token.hex.name
+            elsif @game.respond_to?(:token_label) && (label = @game.token_label(@corporation, token, original_index))
+              label
             else
-              token.hex ? token.hex.name : token.price
+              token.price
             end
           [logo_for_user(token), token.used, token_text]
         end
@@ -462,11 +476,17 @@ module View
         num_treasury_shares = share_number_str(@corporation.num_treasury_shares)
 
         pool_rows = []
+        ipo_row_props = {}
+        # For no_market corporations (factions): add border to IPO row to separate from player rows
+        if @corporation.no_market && player_rows.any?
+          ipo_row_props = { style: { borderBottom: '1px solid currentColor' } }
+        end
+
         if !num_ipo_shares.empty? ||
            num_dc_avail.positive? ||
            !%i[full none].include?(@corporation.capitalization) ||
            @game.class::ALWAYS_SHOW_PAR_PRICE
-          pool_rows << h('tr.ipo', [
+          pool_rows << h('tr.ipo', ipo_row_props, [
             h('td.left', @game.ipo_name(@corporation)),
             h('td.right', shares_props, ('d' * num_dc_avail) + num_ipo_shares),
             h('td.padded_number', share_price_str(@corporation.par_price)),
@@ -502,7 +522,7 @@ module View
           market_tr_props[:style][:color] = contrast_on(color)
         end
 
-        if player_rows.any? || @corporation.num_market_shares.positive?
+        if !@corporation.no_market && (player_rows.any? || @corporation.num_market_shares.positive?)
           at_limit = @game.share_pool.bank_at_limit?(@corporation)
           double_certs = @game.share_pool.shares_of(@corporation).count(&:double_cert)
           other_flags = @game.share_flags(@game.share_pool.shares_of(@corporation))
