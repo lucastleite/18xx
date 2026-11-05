@@ -46,18 +46,15 @@ module Engine
     def self.from_code(code, row, column, unlimited_types, multiple_buy_types: [])
       return nil if !code || code == ''
 
-      # Stage 1: Strip hide_value prefix
       hide_value = code.start_with?('_')
       code = code[1..] if hide_value
 
-      # Stage 2: Strip arrow override suffix
       arrow = nil
-      if /!([dulrn])$/.match?(code)
-        arrow = ::Regexp.last_match(1)
+      if (arrow_match = /!([dulrn])$/.match(code))
+        arrow = arrow_match[1]
         code = code[0..-3]
       end
 
-      # Stage 3: Existing regex parse (unchanged)
       m = code.match(/(\d*)([a-zA-Z]*)/)
       price = m[1].to_i
 
