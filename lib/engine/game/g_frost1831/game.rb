@@ -2339,22 +2339,22 @@ module Engine
             return
           end
 
-          # Check blue cell (pays_bonus_1) — first to arrive gets cube (corp stays there)
+          # Blue cell (pays_bonus_1) — first to arrive claims it and gets a cube (corp stays there)
           if to && to != from && to.types.include?(:pays_bonus_1) && entity.type != :faction
-            @claimed_influence_cells ||= []
-            cell_key = to.coordinates.join(',')
-            unless @claimed_influence_cells.include?(cell_key)
-              @log << "#{entity.name} is first to reach #{format_currency(to.price)} — gains 1 Influence"
-              grant_market_influence(entity)
-              @claimed_influence_cells << cell_key
-              @stock_market.consume_unique_bonus(to)
-            end
+            claim_first_to_arrive_cell(entity, to)
+            grant_market_influence(entity)
           end
 
           # Keep ownership limit in sync when corp enters/exits no_cert_limit (K) zone
           update_ownership_limit_for(entity) if to != from
 
           super
+        end
+
+        def claim_first_to_arrive_cell(entity, price)
+          return unless price.types.delete(:pays_bonus_1)
+
+          @log << "#{entity.name} is first to reach #{format_currency(price.price)}"
         end
 
         # Check if corporation is in the influence zone and bounce back.
