@@ -83,15 +83,15 @@ module Engine
         }.freeze
 
         MARKET = [
-          %w[_ _B!d _B!d _B!d _B!d _B!d _B!d _B!d _B!d _B!d _B!d _B!d _B!d _],
-          %w[_c!n 70y 80 90 100p 110 120 140 160 190 220 250 300K _B!l],
-          %w[_c!n 60y 70 80 90p 100 110 130 150 180 210 240K],
-          %w[_c!n 50y 60 70 80p 90 100 120 140 170 200K],
-          %w[_c!n 40y 50 60 70p 80 90 110 130 160K],
-          %w[_c!n 30y 40 50 60p 70 80 100 120K],
-          %w[_c!n 20y 30 40 50 60 70 80K],
-          %w[_c!n 10y 20 30 40 50 60K],
-          %w[_c!n _c!n],
+          %w[0B!n 0B!d 0B!d 0B!d 0B!d 0B!d 0B!d 0B!d 0B!d 0B!d 0B!d 0B!d 0B!d 0B!n],
+          %w[0c!n 70y 80 90 100p 110 120 140 160 190 220 250 300W 0B!l],
+          %w[0c!n 60y 70 80 90p 100 110 130 150 180 210 240W],
+          %w[0c!n 50y 60 70 80p 90 100 120 140 170 200W],
+          %w[0c!n 40y 50 60 70p 80 90 110 130 160W],
+          %w[0c!n 30y 40 50 60p 70 80 100 120W],
+          %w[0c!n 20y 30 40 50 60 70 80W],
+          %w[0c!n 10y 20 30 40 50 60W],
+          %w[0c!n 0c!n],
           %w[70r 80r 100r 120r 140r 160r 190r 220r 250r!n],
         ].freeze
 
@@ -100,7 +100,7 @@ module Engine
         STOCKMARKET_COLORS = Base::STOCKMARKET_COLORS.merge(
           close: :orange,
           pays_bonus: :purple,
-          pays_unique_bonus: :blue,
+          pays_bonus_1: :blue,
           repar: :gray,
         ).freeze
 
@@ -108,7 +108,7 @@ module Engine
           par: 'Initial Offering (£60–£100)',
           close: 'Intervention Zone — corporation is eliminated',
           pays_bonus: 'Influence Zone — grants Influence',
-          pays_unique_bonus: 'Influence — first to arrive',
+          pays_bonus_1: 'Influence — first to arrive',
           no_cert_limit: 'Shares do not count towards cert limit, may hold >60%',
           repar: 'Faction Values in Parliament',
         ).freeze
@@ -2339,8 +2339,8 @@ module Engine
             return
           end
 
-          # Check blue cell (pays_unique_bonus) — first to arrive gets cube (corp stays there)
-          if to && to != from && to.types.include?(:pays_unique_bonus) && entity.type != :faction
+          # Check blue cell (pays_bonus_1) — first to arrive gets cube (corp stays there)
+          if to && to != from && to.types.include?(:pays_bonus_1) && entity.type != :faction
             @claimed_influence_cells ||= []
             cell_key = to.coordinates.join(',')
             unless @claimed_influence_cells.include?(cell_key)
