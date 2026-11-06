@@ -47,7 +47,6 @@ module Engine
           raise GameError, "#{corporation.name} has no influence with #{faction_display_name(faction_sym)}" unless cubes.positive?
 
           @corporation_influence[corporation.id][faction_sym] -= 1
-          @faction_influence[faction_sym] -= 1 if @faction_influence[faction_sym].positive?
 
           train.name = new_name
 
