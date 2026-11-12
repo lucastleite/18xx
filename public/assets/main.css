@@ -146,17 +146,6 @@ svg {
   filter: drop-shadow(1px 0px 2px #555);
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: black;
-    color: gainsboro;
-  }
-
-  button, .button_link, input, select, textarea {
-    background-color: gainsboro;
-  }
-}
-
 nav#game_menu {
   padding: 1rem 2vmin 1rem 2vmin;
 }
