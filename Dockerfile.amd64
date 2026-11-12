@@ -5,6 +5,10 @@ RUN mkdir /18xx
 WORKDIR /18xx
 RUN git config --global --add safe.directory /18xx
 
+# Inject corporate CA cert (Zscaler) for SSL verification
+COPY zscaler-ca.pem /usr/local/share/ca-certificates/zscaler.crt
+RUN cat /usr/local/share/ca-certificates/zscaler.crt >> /etc/ssl/certs/ca-certificates.crt
+
 RUN if [ "$RACK_ENV" = "development" ]; \
     then \
       curl -s https://registry.npmjs.org/esbuild-linux-64/-/esbuild-linux-64-0.14.36.tgz | tar xz; \

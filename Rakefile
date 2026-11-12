@@ -125,7 +125,7 @@ task :precompile do
   FileUtils.mkdir_p(pin_dir)
   assets.pin("#{pin_dir}#{git_rev}.js.gz")
 
-  assets.clean_intermediate_output_files
+  assets.clean_intermediate_output_files unless ENV['KEEP_ASSETS']
 end
 
 desc 'Profile loading data'
