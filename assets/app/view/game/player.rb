@@ -36,7 +36,8 @@ module View
         ]
 
         if @show_companies
-          divs << h(Companies, owner: @player, game: @game, show_hidden: @show_hidden) if @player.companies.any? || @show_hidden
+          visible_companies = @game.companies_sort(@player.companies)
+          divs << h(Companies, owner: @player, game: @game, show_hidden: @show_hidden) if visible_companies.any? || @show_hidden
           divs << h(UnsoldCompanies, owner: @player, game: @game) unless @player.unsold_companies.empty?
           divs << h(HiddenHand, player: @player, game: @game, user: @user) if @game.show_hidden_hand?
         end

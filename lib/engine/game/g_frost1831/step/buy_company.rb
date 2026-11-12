@@ -7,18 +7,24 @@ module Engine
     module GFrost1831
       module Step
         class BuyCompany < Engine::Step::BuyCompany
-          PHASES_WITHOUT_PRIVATES = %w[5 6 D].freeze
-
           def actions(entity)
-            return [] if phases_without_privates.include?(@game.phase.name)
+            return %w[choose] if entity&.company? && entity.sym == 'FAV'
+            return [] if %w[5 6 D].include?(@game.phase.name)
 
             super
           end
 
-          private
+          def process_choose(action)
+            return unless action.entity&.sym == 'FAV'
 
-          def phases_without_privates
-            self.class::PHASES_WITHOUT_PRIVATES
+            special_choose = @round.steps.find { |s| s.is_a?(GFrost1831::Step::SpecialChoose) }
+            special_choose&.process_choose_ability(action)
+          end
+
+          def log_skip(entity)
+            return if entity.type == :faction
+
+            super
           end
         end
       end

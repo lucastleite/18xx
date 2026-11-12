@@ -34,7 +34,14 @@ module Engine
 
         it 'loads the eight corporations' do
           game = new_game(3)
-          expect(game.corporations.map(&:id).sort).to eq(%w[CM DL EC GJ HF OE SP TV])
+          corporations = game.corporations.reject { |c| c.type == :faction }
+          expect(corporations.map(&:id).sort).to eq(%w[CM DL EC GJ HF OE SP TV])
+        end
+
+        it 'loads the four factions' do
+          game = new_game(3)
+          factions = game.corporations.select { |c| c.type == :faction }
+          expect(factions.map(&:id).sort).to eq(%w[EXP GUA LOR TEC])
         end
 
         describe 'first-to-arrive market cells' do

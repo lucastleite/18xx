@@ -5,6 +5,7 @@ module View
     class GameMeta < Snabberb::Component
       needs :game
       needs :show_title, default: true
+      needs :show_optional_rules, default: true
 
       def render
         children = [h(:h3, 'Game Info')]
@@ -14,7 +15,7 @@ module View
         children.concat(render_designer)
         children.concat(render_implementer)
         children.concat(render_rule_links)
-        children.concat(render_optional_rules) if @game.game_instance?
+        children.concat(render_optional_rules) if @show_optional_rules && @game.game_instance?
         children.concat(render_known_issues)
         children.concat(render_more_info)
 

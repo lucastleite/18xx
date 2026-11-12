@@ -109,7 +109,7 @@ module Engine
         hex = action.hex
         rotation = action.rotation
         old_tile = hex.tile
-        graph = @game.graph_for_entity(spender)
+        graph = @game.tile_lay_graph_for_entity(spender)
 
         if !@game.loading && (blocking_ability = ability_blocking_hex(entity, hex))
           raise GameError, "#{hex.id} is blocked by #{blocking_ability.owner.name}"
@@ -333,7 +333,7 @@ module Engine
 
         return if @game.class::TRACK_RESTRICTION == :permissive # permissive track doesn't need to check everything below
 
-        graph = @game.graph_for_entity(entity)
+        graph = @game.tile_lay_graph_for_entity(entity)
         old_paths = old_tile.paths
         changed_city = false
         used_new_track = old_paths.empty?
@@ -474,7 +474,7 @@ module Engine
       end
 
       def hex_neighbors(entity, hex)
-        @game.graph_for_entity(entity).connected_hexes(entity)[hex]
+        @game.tile_lay_graph_for_entity(entity).connected_hexes(entity)[hex]
       end
 
       def can_buy_tile_laying_company?(entity, time:)

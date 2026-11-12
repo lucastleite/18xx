@@ -74,7 +74,7 @@ module View
             children << render_reserved
           end
           children << render_owned_other_shares unless @corporation.corporate_shares.empty?
-          children << h(Companies, owner: @corporation, game: @game) unless @corporation.companies.empty?
+          children << h(Companies, owner: @corporation, game: @game) unless @game.companies_sort(@corporation.companies).empty?
           if @game.respond_to?(:corporate_card_minors) && !(ms = @game.corporate_card_minors(@corporation)).empty?
             children << render_minors(ms)
           end
@@ -462,11 +462,17 @@ module View
         num_treasury_shares = share_number_str(@corporation.num_treasury_shares)
 
         pool_rows = []
+        ipo_row_props = {}
+        # For no_market corporations (factions): add border to IPO row to separate from player rows
+        if @corporation.no_market && player_rows.any?
+          ipo_row_props = { style: { borderBottom: '1px solid currentColor' } }
+        end
+
         if !num_ipo_shares.empty? ||
            num_dc_avail.positive? ||
            !%i[full none].include?(@corporation.capitalization) ||
            @game.class::ALWAYS_SHOW_PAR_PRICE
-          pool_rows << h('tr.ipo', [
+          pool_rows << h('tr.ipo', ipo_row_props, [
             h('td.left', @game.ipo_name(@corporation)),
             h('td.right', shares_props, ('d' * num_dc_avail) + num_ipo_shares),
             h('td.padded_number', share_price_str(@corporation.par_price)),
@@ -502,7 +508,7 @@ module View
           market_tr_props[:style][:color] = contrast_on(color)
         end
 
-        if player_rows.any? || @corporation.num_market_shares.positive?
+        if !@corporation.no_market && (player_rows.any? || @corporation.num_market_shares.positive?)
           at_limit = @game.share_pool.bank_at_limit?(@corporation)
           double_certs = @game.share_pool.shares_of(@corporation).count(&:double_cert)
           other_flags = @game.share_flags(@game.share_pool.shares_of(@corporation))

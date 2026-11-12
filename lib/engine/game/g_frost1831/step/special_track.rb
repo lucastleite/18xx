@@ -18,6 +18,11 @@ module Engine
             false
           end
 
+          def process_lay_tile(action)
+            super
+            @game.after_lay_tile(action.hex, action.tile, action.entity)
+          end
+
           private
 
           def sold_tile_available?

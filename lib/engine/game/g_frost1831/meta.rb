@@ -8,7 +8,7 @@ module Engine
       module Meta
         include Game::Meta
 
-        DEV_STAGE = :prealpha
+        DEV_STAGE = :alpha
 
         GAME_TITLE = 'Frost 1831'.freeze
         GAME_ISSUE_LABEL = 'frost1831'
@@ -25,7 +25,18 @@ module Engine
 
         PLAYER_RANGE = [2, 5].freeze
 
-        OPTIONAL_RULES = [].freeze
+        OPTIONAL_RULES = [
+          {
+            sym: :parliamentary_intervention,
+            short_name: 'Parliamentary Intervention',
+            desc: "Player's 2nd corporation must support at least 1 faction different from the 1st corporation",
+          },
+          {
+            sym: :tight_government,
+            short_name: 'Tight Government',
+            desc: 'All regulations start at Tight position (R1-R4 = 2)',
+          },
+        ].freeze
       end
     end
   end
