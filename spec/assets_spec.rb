@@ -585,6 +585,7 @@ describe 'Assets' do
       def frost_bot_action(game, step, entity, actions, neutral: false)
         if actions.include?('choose')
           choice = (frost_neutral_choice(game, step) if neutral) || step.choices.keys.first
+          choice = 'pass' if step.is_a?(Engine::Game::GFrost1831::Step::Vote) && step.choices.include?('pass')
           choice = game.intervention_choices.keys.first if step.is_a?(Engine::Game::GFrost1831::Step::Intervention)
           Engine::Action::Choose.new(entity, choice: choice)
         elsif actions.include?('place_token') && !step.is_a?(Engine::Game::GFrost1831::Step::FactionAction)
@@ -665,14 +666,14 @@ describe 'Assets' do
       end
 
       def frost_play_until(game, step_class, neutral: false)
-        200.times do
+        400.times do
           step = game.round.active_step
-          break if step.is_a?(step_class)
+          break if step.instance_of?(step_class)
 
           entity = game.current_entity
           game.process_action(frost_bot_action(game, step, entity, step.actions(entity), neutral: neutral))
         end
-        expect(game.round.active_step).to be_a(step_class)
+        expect(game.round.active_step).to be_an_instance_of(step_class)
       end
 
       def render_frost(game)
@@ -714,6 +715,22 @@ describe 'Assets' do
 
         expect(render_frost(game)).to include('Lay Track or Place a Base', 'Skip (Track/Base)', 'Influence Cost',
                                               'Lay yellow tile (plain)', 'Place a base')
+      end
+
+      it 'renders the Proposal of a Voting Round with the Market Regulation' do
+        game = frost_game_until_float
+        frost_play_until(game, Engine::Game::GFrost1831::Step::Proposal)
+
+        expect(render_frost(game)).to include('Criterion', 'R1. Track Laying', 'R4. Favor', 'Market Regulation',
+                                              'R1. Track Laying', '£0 + £20', 'hammer.svg')
+      end
+
+      it 'renders the vote on the proposed criterion' do
+        game = frost_game_until_float
+        frost_play_until(game, Engine::Game::GFrost1831::Step::Vote)
+
+        expect(render_frost(game)).to include('R1. Track Laying Vote', 'Loosen (0◆)', 'Tighten (0◆)', 'Market Regulation',
+                                              'Shareholder')
       end
     end
 
