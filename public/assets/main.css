@@ -285,6 +285,9 @@ nav#game_menu {
 .no_padding {
   padding: 0;
 }
+.hover_row:hover {
+  background-color: rgba(0,0,0,0.07);
+}
 .padded_number {
   text-align: right;
   padding-right: 0.5em;
