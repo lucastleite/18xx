@@ -587,7 +587,7 @@ describe 'Assets' do
           choice = (frost_neutral_choice(game, step) if neutral) || step.choices.keys.first
           choice = game.intervention_choices.keys.first if step.is_a?(Engine::Game::GFrost1831::Step::Intervention)
           Engine::Action::Choose.new(entity, choice: choice)
-        elsif actions.include?('place_token')
+        elsif actions.include?('place_token') && !step.is_a?(Engine::Game::GFrost1831::Step::FactionAction)
           hex = game.hexes.find { |h| step.available_hex(entity, h) }
           Engine::Action::PlaceToken.new(entity, city: hex.tile.cities.first, slot: 0)
         elsif actions.include?('buy_shares')
@@ -706,6 +706,14 @@ describe 'Assets' do
         frost_play_until(game, Engine::Game::GFrost1831::Step::FirstOperatingFaction, neutral: true)
 
         expect(render_frost(game)).to include('Which Faction operates first?', 'Technicians', 'Lords')
+      end
+
+      it 'renders the turn of a Faction' do
+        game = frost_game_until_float
+        frost_play_until(game, Engine::Game::GFrost1831::Step::FactionAction)
+
+        expect(render_frost(game)).to include('Lay Track or Place a Base', 'Skip (Track/Base)', 'Influence Cost',
+                                              'Lay yellow tile (plain)', 'Place a base')
       end
     end
 

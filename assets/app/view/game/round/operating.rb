@@ -99,6 +99,7 @@ module View
             left << h(Player, player: entity, game: @game)
           elsif entity.operator? && entity.floated?
             left << h(Corporation, corporation: entity)
+            left.concat(render_entity_views(entity))
             if @step.respond_to?(:show_other) && @step.show_other
               Array(@step.show_other).each { |other_corporation| left << h(Corporation, corporation: other_corporation) }
             end
@@ -169,6 +170,12 @@ module View
           ]
 
           h(:div, children)
+        end
+
+        def render_entity_views(entity)
+          return [] unless @step.respond_to?(:entity_views)
+
+          @step.entity_views(entity).map { |view, props| h(Object.const_get("View::Game::#{view}"), props) }
         end
 
         def render_choice_corporations
