@@ -109,12 +109,6 @@ module Engine
           expect(game.token_string(tec)).to eq('8/9')
         end
 
-        it 'does not let Factions operate yet' do
-          tec.floated = true
-
-          expect(game.operating_order).not_to include(tec)
-        end
-
         it 'returns sold certificates to Parliament without lowering the price' do
           start_stock_round
           buy(p1, tec)

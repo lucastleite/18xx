@@ -8,6 +8,7 @@ require_relative 'faction'
 require_relative 'tiles'
 require_relative 'stock_market'
 require_relative 'round/stock'
+require_relative 'round/operating'
 require_relative 'step/buy_sell_par_shares'
 require_relative 'step/choose_factions'
 require_relative 'step/choose_influence'
@@ -15,6 +16,7 @@ require_relative 'step/track'
 require_relative 'step/home_token'
 require_relative 'step/token'
 require_relative 'step/intervention'
+require_relative 'step/first_operating_faction'
 require_relative 'step/exchange'
 require_relative 'step/special_choose'
 require_relative 'step/buy_cert'
@@ -458,6 +460,7 @@ module Engine
           @pending_influence_queue = []
           @deferred_turmoil = false
           @intervention = nil
+          @first_operating_faction = nil
           @intervention_certificates = Hash.new(0)
           @intervention_cards_given = 0
           @corporations_removed = 0
@@ -494,6 +497,19 @@ module Engine
 
         def factions
           @corporations.select { |c| c.type == :faction }
+        end
+
+        def bank_sort(corporations)
+          factions, others = corporations.partition { |c| c.type == :faction }
+          super(factions) + super(others)
+        end
+
+        def sorted_corporations
+          start = faction_order.index(governing_faction_sym || @first_operating_faction) || 0
+          arena = faction_order.rotate(start).map { |sym| corporation_by_id(sym) }
+          floated, others = (@corporations - factions).partition(&:floated?)
+          ipoed, rest = others.partition(&:ipoed)
+          arena + floated.sort + ipoed.sort + rest
         end
 
         # Actions store a Faction's entity_type as 'faction'
@@ -732,11 +748,17 @@ module Engine
                                       sold_out_top_row_movement: self.class::SOLD_OUT_TOP_ROW_MOVEMENT)
         end
 
+        def new_operating_round(round_num = 1)
+          @first_operating_faction = governing_faction_sym
+          super
+        end
+
         def operating_round(round_num)
-          Engine::Round::Operating.new(self, [
+          GFrost1831::Round::Operating.new(self, [
             Engine::Step::Bankrupt,
             GFrost1831::Step::HomeToken,
             GFrost1831::Step::Intervention,
+            GFrost1831::Step::FirstOperatingFaction,
             GFrost1831::Step::ChooseInfluence,
             GFrost1831::Step::SpecialChoose,
             GFrost1831::Step::SpecialTrack,
@@ -929,7 +951,29 @@ module Engine
         end
 
         def operating_order
-          super.reject { |c| c.type == :faction }
+          faction_operating_order + super.reject { |c| c.type == :faction }
+        end
+
+        def founded_factions
+          factions.select(&:floated?)
+        end
+
+        def faction_operating_order
+          start = faction_order.index(@first_operating_faction) || 0
+          faction_order.rotate(start).filter_map { |sym| founded_factions.find { |f| f.id == sym } }
+        end
+
+        def first_operating_faction_pending?
+          @first_operating_faction.nil? && founded_factions.size > 1
+        end
+
+        def first_operating_faction_chooser
+          @players.reject(&:bankrupt).first
+        end
+
+        def choose_first_operating_faction!(player, faction)
+          @first_operating_faction = faction.id
+          @log << "#{player.name} chooses #{faction.full_name} as first faction for Operating Round"
         end
 
         def sold_shares_destination(corporation)
