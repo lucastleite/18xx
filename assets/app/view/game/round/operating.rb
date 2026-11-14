@@ -99,6 +99,9 @@ module View
             left << h(Player, player: entity, game: @game)
           elsif entity.operator? && entity.floated?
             left << h(Corporation, corporation: entity)
+            if @step.respond_to?(:entity_view) && (view = @step.entity_view(entity))
+              left << send("render_#{view}")
+            end
             if @step.respond_to?(:show_other) && @step.show_other
               Array(@step.show_other).each { |other_corporation| left << h(Corporation, corporation: other_corporation) }
             end
@@ -169,6 +172,10 @@ module View
           ]
 
           h(:div, children)
+        end
+
+        def render_faction_costs
+          h(GFrost1831::FactionCosts, game: @game)
         end
 
         def render_choice_corporations

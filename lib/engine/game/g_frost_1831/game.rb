@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative '../../operating_info'
 require_relative 'meta'
 require_relative 'parliament_movement'
 require_relative 'map'
@@ -17,6 +18,8 @@ require_relative 'step/home_token'
 require_relative 'step/token'
 require_relative 'step/intervention'
 require_relative 'step/first_operating_faction'
+require_relative 'step/faction_action'
+require_relative 'step/faction_dividend'
 require_relative 'step/exchange'
 require_relative 'step/special_choose'
 require_relative 'step/buy_cert'
@@ -298,6 +301,22 @@ module Engine
 
         INTERVENTION_CARDS = { 2 => 2, 3 => 2, 4 => 1, 5 => 1 }.freeze
 
+        FACTION_TILE_LAYS = [{ lay: true, upgrade: true }].freeze
+
+        FACTION_TRACK_COSTS = { yellow: 1, green: 2, brown: 3, gray: 4 }.freeze
+
+        FACTION_MOUNTAIN_COSTS = { 50 => 1, 80 => 2 }.freeze
+
+        FACTION_BASE_COST = 5
+
+        FACTION_EXCLUDED_HEXES = %w[D7 M6].freeze
+
+        FACTION_BASE_INCOME = { '3' => 20, '4' => 20, '5' => 30, '6' => 30, 'D' => 40 }.freeze
+
+        FACTION_INTERVENTION_CERTIFICATE_REVENUE = 10
+
+        FACTION_INFLUENCE_REVENUE = 10
+
         D_TRAIN = 'D'
 
         INFLUENCE_REASONS = {
@@ -387,7 +406,16 @@ module Engine
 
           hex.tile.icons.delete(new_london_route_icon(hex))
           corporation = entity.company? ? entity.owner : entity
+          return grant_faction_influence!(corporation, :new_london_route, hex.name) if corporation&.type == :faction
+
           grant_corporation_influence!(corporation, :new_london_route, hex.name) if corporation&.corporation?
+        end
+
+        def grant_faction_influence!(faction, reason, place)
+          if faction_influence_gain(faction.id)
+            @log << "#{faction.name} gains 1 Influence from #{self.class::INFLUENCE_REASONS[reason]} (#{place})"
+          end
+          move_government(faction.id)
         end
 
         def new_london_route_icon(hex)
@@ -759,6 +787,8 @@ module Engine
             GFrost1831::Step::HomeToken,
             GFrost1831::Step::Intervention,
             GFrost1831::Step::FirstOperatingFaction,
+            GFrost1831::Step::FactionAction,
+            GFrost1831::Step::FactionDividend,
             GFrost1831::Step::ChooseInfluence,
             GFrost1831::Step::SpecialChoose,
             GFrost1831::Step::SpecialTrack,
@@ -851,10 +881,8 @@ module Engine
           token.remove!
           city.remove_reservation!(corporation)
           city.place_token(faction, faction.next_base, check_tokenable: false)
-          from = faction.share_price
-          @stock_market.move_right(faction)
           @log << "#{faction.full_name} replaces the station of #{corporation.name} in #{city.hex.name} with a base"
-          log_share_price(faction, from)
+          move_faction_right!(faction)
           clear_graph
           @intervention[:factions].delete(faction)
           replacements = intervention_replacements
@@ -969,6 +997,97 @@ module Engine
 
         def first_operating_faction_chooser
           @players.reject(&:bankrupt).first
+        end
+
+        def place_home_token(corporation)
+          return if corporation.type == :faction
+
+          super
+        end
+
+        def tile_lays(entity)
+          entity.type == :faction ? self.class::FACTION_TILE_LAYS : super
+        end
+
+        def faction_track_cost(hex, tile)
+          cost = self.class::FACTION_TRACK_COSTS[tile.color]
+          return cost unless tile.color == :yellow
+
+          cost + hex.original_tile.upgrades.sum { |upgrade| self.class::FACTION_MOUNTAIN_COSTS[upgrade.cost] || 0 }
+        end
+
+        def faction_track_cost_minimum
+          self.class::FACTION_TRACK_COSTS.values.min
+        end
+
+        def faction_base_cost
+          self.class::FACTION_BASE_COST
+        end
+
+        def faction_excluded_hex?(hex)
+          self.class::FACTION_EXCLUDED_HEXES.include?(hex.id)
+        end
+
+        def spend_faction_influence!(faction, amount)
+          @faction_influence[faction.id] -= amount
+        end
+
+        def place_faction_base!(faction, hex)
+          spend_faction_influence!(faction, faction_base_cost)
+          @log << "#{faction.name} places a token on #{hex.name} for #{faction_base_cost} Influences"
+          move_faction_right!(faction)
+        end
+
+        def move_faction_right!(faction)
+          @stock_market.move_right(faction)
+          @log << "#{faction.name}'s value increases to #{format_currency(faction.share_price.price)}"
+        end
+
+        def faction_revenue_parts(faction)
+          {
+            'phase base income' => self.class::FACTION_BASE_INCOME[@phase.name] || 0,
+            'bases' => faction.tokens.select(&:used).sum { |token| phase_revenue(token.city) },
+            'Intervention Certificates' =>
+              intervention_certificates(faction) * self.class::FACTION_INTERVENTION_CERTIFICATE_REVENUE,
+            'Influence' => faction_influence(faction.id) * self.class::FACTION_INFLUENCE_REVENUE,
+          }
+        end
+
+        def phase_revenue(revenue_center)
+          color = @phase.tiles.reverse.find { |tile_color| revenue_center.revenue[tile_color] }
+          color ? revenue_center.revenue[color] : 0
+        end
+
+        def faction_action_costs
+          yellow = self.class::FACTION_TRACK_COSTS[:yellow]
+          [
+            ['Lay yellow tile (plain)', yellow],
+            *self.class::FACTION_MOUNTAIN_COSTS.map do |terrain, extra|
+              ["Lay yellow tile (mountain #{format_currency(terrain)})", yellow + extra]
+            end,
+            *self.class::FACTION_TRACK_COSTS.except(:yellow).map { |color, cost| ["Upgrade to #{color}", cost] },
+            ['Place a base', faction_base_cost],
+          ]
+        end
+
+        def pay_faction_dividend!(faction)
+          parts = faction_revenue_parts(faction)
+          revenue = parts.values.sum
+          faction.operating_history[[@turn, @round.round_num]] =
+            OperatingInfo.new([], nil, revenue, [], dividend_kind: 'payout')
+          details = parts.select { |_, amount| amount.positive? }.map { |name, amount| "#{format_currency(amount)} #{name}" }
+          @log << "#{faction.name} earns #{format_currency(revenue)} (#{details.join(', ')})"
+
+          payouts = @players.filter_map do |player|
+            amount = (revenue * player.percent_of(faction).to_f / 100).floor
+            next unless amount.positive?
+
+            @bank.spend(amount, player)
+            "#{format_currency(amount)} to #{player.name}"
+          end
+          per_share = (revenue * faction.share_percent.to_f / 100).floor
+          @log << "#{faction.name} pays #{format_currency(per_share)} per certificate"\
+                  "#{payouts.empty? ? '' : " (#{payouts.join(', ')})"}"
         end
 
         def choose_first_operating_faction!(player, faction)
