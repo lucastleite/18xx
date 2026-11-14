@@ -76,6 +76,10 @@ module View
         h(GFrost1831::InfluenceArena, game: @game, scale: 0.67)
       end
 
+      def render_market_regulation
+        h(:div, [h(GFrost1831::MarketRegulation, game: @game), h(GFrost1831::VotingFactions, game: @game)])
+      end
+
       def render_intervention_choice
         h(GFrost1831::InterventionChoice, game: @game)
       end
