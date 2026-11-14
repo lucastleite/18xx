@@ -49,17 +49,21 @@ module Engine
           end
 
           def process_choose(action)
-            faction = @game.founded_factions.find { |f| f.id == action.choice }
-            raise GameError, "#{action.choice} is not a founded Faction" unless faction
-
-            @game.choose_first_operating_faction!(action.entity, faction)
+            @game.choose_first_operating_faction!(action.entity, founded_faction(action.choice))
             @round.first_operating_faction_chosen!
           end
 
           private
 
+          def founded_faction(choice)
+            faction = @game.founded_factions.find { |f| f.id == choice }
+            raise GameError, "#{choice} is not a founded Faction" unless faction
+
+            faction
+          end
+
           def chooser
-            @game.first_operating_faction_chooser
+            @game.first_faction_chooser
           end
         end
       end

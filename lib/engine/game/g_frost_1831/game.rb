@@ -10,6 +10,7 @@ require_relative 'tiles'
 require_relative 'stock_market'
 require_relative 'round/stock'
 require_relative 'round/operating'
+require_relative 'round/voting'
 require_relative 'step/buy_sell_par_shares'
 require_relative 'step/choose_factions'
 require_relative 'step/choose_influence'
@@ -18,6 +19,9 @@ require_relative 'step/home_token'
 require_relative 'step/token'
 require_relative 'step/intervention'
 require_relative 'step/first_operating_faction'
+require_relative 'step/first_voting_faction'
+require_relative 'step/proposal'
+require_relative 'step/vote'
 require_relative 'step/faction_action'
 require_relative 'step/faction_dividend'
 require_relative 'step/exchange'
@@ -291,6 +295,8 @@ module Engine
         NORMAL = 1
         TIGHT = 2
 
+        REGULATION_SETTINGS = %w[Loose Normal Tight].freeze
+
         REGULATION_COST = 20
 
         R3_OWNERSHIP_LIMITS = [70, 60, 50].freeze
@@ -464,7 +470,7 @@ module Engine
           corporation_influence_for(corporation, faction_sym) < corporation_influence_limit
         end
 
-        attr_reader :government_marker, :intervention, :regulations
+        attr_reader :government_marker, :intervention, :regulations, :voting_regulation
 
         FACTION_TREASURY = 500
 
@@ -776,6 +782,45 @@ module Engine
                                       sold_out_top_row_movement: self.class::SOLD_OUT_TOP_ROW_MOVEMENT)
         end
 
+        def next_round!
+          return super if !@round.is_a?(GFrost1831::Round::Voting) && !voting_round_next?
+
+          @round =
+            if @round.is_a?(GFrost1831::Round::Voting)
+              new_operating_round
+            else
+              @operating_rounds = @phase.operating_rounds
+              reorder_players
+              new_voting_round
+            end
+        end
+
+        def voting_round_next?
+          @round.is_a?(Engine::Round::Stock) && parliament_open? && !founded_factions.empty?
+        end
+
+        def new_voting_round
+          @log << "-- #{round_description('Voting')} --"
+          setup_voting
+          voting_round
+        end
+
+        def setup_voting
+          @first_voting_faction = governing_faction_sym
+          @proposal_index = 0
+          @locked_regulations = []
+          @voting_regulation = nil
+        end
+
+        def voting_round
+          GFrost1831::Round::Voting.new(self, [
+            GFrost1831::Step::FirstVotingFaction,
+            GFrost1831::Step::SpecialChoose,
+            GFrost1831::Step::Proposal,
+            GFrost1831::Step::Vote,
+          ])
+        end
+
         def new_operating_round(round_num = 1)
           @first_operating_faction = governing_faction_sym
           super
@@ -987,7 +1032,15 @@ module Engine
         end
 
         def faction_operating_order
-          start = faction_order.index(@first_operating_faction) || 0
+          founded_factions_from(@first_operating_faction)
+        end
+
+        def faction_voting_order
+          founded_factions_from(@first_voting_faction)
+        end
+
+        def founded_factions_from(first_faction)
+          start = faction_order.index(first_faction) || 0
           faction_order.rotate(start).filter_map { |sym| founded_factions.find { |f| f.id == sym } }
         end
 
@@ -995,7 +1048,11 @@ module Engine
           @first_operating_faction.nil? && founded_factions.size > 1
         end
 
-        def first_operating_faction_chooser
+        def first_voting_faction_pending?
+          @first_voting_faction.nil? && founded_factions.size > 1
+        end
+
+        def first_faction_chooser
           @players.reject(&:bankrupt).first
         end
 
@@ -1093,6 +1150,11 @@ module Engine
         def choose_first_operating_faction!(player, faction)
           @first_operating_faction = faction.id
           @log << "#{player.name} chooses #{faction.full_name} as first faction for Operating Round"
+        end
+
+        def choose_first_voting_faction!(player, faction)
+          @first_voting_faction = faction.id
+          @log << "#{player.name} chooses #{faction.full_name} as priority faction for Voting Round"
         end
 
         def sold_shares_destination(corporation)
@@ -1226,6 +1288,113 @@ module Engine
 
         def regulation_value(regulation_id)
           @regulations[regulation_id][:position]
+        end
+
+        def regulation_setting(regulation_id)
+          self.class::REGULATION_SETTINGS[regulation_value(regulation_id)]
+        end
+
+        def regulation_label(regulation_id)
+          "#{regulation_id} (#{@regulations[regulation_id][:name]})"
+        end
+
+        def voter_label(faction)
+          "#{faction.owner&.name} (#{faction.name})"
+        end
+
+        def regulation_title(regulation_id)
+          "#{regulation_id}. #{@regulations[regulation_id][:name]}"
+        end
+
+        def regulation_moves(regulation_id)
+          value = regulation_value(regulation_id)
+          [value - 1, value + 1].select { |v| v.between?(self.class::LOOSE, self.class::TIGHT) }
+                                .map { |v| self.class::REGULATION_SETTINGS[v] }
+        end
+
+        def available_regulations
+          @regulations.keys - @locked_regulations
+        end
+
+        def locked_regulation?(regulation_id)
+          @locked_regulations.include?(regulation_id)
+        end
+
+        def proposer
+          faction_voting_order[@proposal_index]
+        end
+
+        def proposal_pending?
+          !first_voting_faction_pending? && @voting_regulation.nil? && @proposal_index < faction_voting_order.size
+        end
+
+        def voter
+          voters[@voting_turn % voters.size]
+        end
+
+        def voters
+          faction_voting_order.rotate(@proposal_index)
+        end
+
+        def free_vote?
+          @voting_turn.zero?
+        end
+
+        def can_vote?(faction)
+          faction_influence(faction.id).positive? ||
+            use_influence_choices(faction.owner).include?("#{self.class::FACTION_CHOICE}:#{faction.id}")
+        end
+
+        def propose_regulation!(faction, regulation_id)
+          raise GameError, "#{regulation_id} is not available" unless available_regulations.include?(regulation_id)
+
+          @voting_regulation = regulation_id
+          @voting_turn = 0
+          @voting_passes = 0
+          @log << "#{voter_label(faction)} chooses #{regulation_title(regulation_id)}"
+        end
+
+        def pass_proposal!(faction)
+          @log << "#{voter_label(faction)} passes on proposing"
+          next_proposal!
+        end
+
+        def vote_regulation!(faction, setting)
+          label = regulation_label(@voting_regulation)
+          raise GameError, "#{label} cannot move to #{setting}" unless regulation_moves(@voting_regulation).include?(setting)
+
+          vote = "#{voter_label(faction)} votes #{regulation_title(@voting_regulation)}: "\
+                 "#{regulation_setting(@voting_regulation)} -> #{setting}"
+          if free_vote?
+            @log << vote
+          else
+            raise GameError, "#{faction.name} has no Influence" unless faction_influence(faction.id).positive?
+
+            spend_faction_influence!(faction, 1)
+            @log << "#{vote} (spends 1 Influence)"
+          end
+          direction = self.class::REGULATION_SETTINGS.index(setting) > regulation_value(@voting_regulation) ? :up : :down
+          move_regulation(@voting_regulation, direction)
+          @voting_passes = 0
+          @voting_turn += 1
+        end
+
+        def pass_vote!(faction)
+          @log << "#{voter_label(faction)} #{can_vote?(faction) ? 'maintains' : 'auto-maintains (no influence)'}"
+          @voting_passes += 1
+          @voting_turn += 1
+          lock_regulation! if @voting_passes == voters.size
+        end
+
+        def lock_regulation!
+          @locked_regulations << @voting_regulation
+          @log << "#{regulation_label(@voting_regulation)} is locked at #{regulation_setting(@voting_regulation)}"
+          next_proposal!
+        end
+
+        def next_proposal!
+          @voting_regulation = nil
+          @proposal_index += 1
         end
 
         def move_regulation(regulation_id, direction)
