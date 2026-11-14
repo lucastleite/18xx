@@ -582,16 +582,16 @@ describe 'Assets' do
         expect(render(app_route: '/game/1', **needs)).to include('Allocate Influence for CM (Influence Zone)', 'Influence Arena')
       end
 
-      def frost_bot_action(game, step, entity, actions)
+      def frost_bot_action(game, step, entity, actions, neutral: false)
         if actions.include?('choose')
-          choice = step.choices.keys.first
+          choice = (frost_neutral_choice(game, step) if neutral) || step.choices.keys.first
           choice = game.intervention_choices.keys.first if step.is_a?(Engine::Game::GFrost1831::Step::Intervention)
           Engine::Action::Choose.new(entity, choice: choice)
         elsif actions.include?('place_token')
           hex = game.hexes.find { |h| step.available_hex(entity, h) }
           Engine::Action::PlaceToken.new(entity, city: hex.tile.cities.first, slot: 0)
         elsif actions.include?('buy_shares')
-          frost_bot_buy(game, step, entity)
+          (frost_neutral_buy(game, step, entity) if neutral) || frost_bot_buy(game, step, entity)
         elsif actions.include?('run_routes')
           Engine::Action::RunRoutes.new(entity, routes: [])
         elsif actions.include?('dividend')
@@ -602,6 +602,36 @@ describe 'Assets' do
         else
           Engine::Action::Pass.new(entity)
         end
+      end
+
+      def frost_neutral_distances
+        movements = Engine::Game::GFrost1831::ParliamentMovement::MOVEMENTS
+        distances = { '3,4' => 0 }
+        until distances.size == movements.size
+          movements.each do |from, destinations|
+            reachable = destinations.filter_map { |d| distances[d] }.min
+            distances[from] = reachable + 1 if reachable && !distances[from]
+          end
+        end
+        distances
+      end
+
+      def frost_neutral_choice(game, step)
+        row, col = game.government_marker
+        step.choices.keys.min_by do |sym|
+          destination = Engine::Game::GFrost1831::ParliamentMovement.move(row, col, sym)
+          destination ? frost_neutral_distances[destination.join(',')] : 99
+        end
+      end
+
+      def frost_neutral_buy(game, step, player)
+        return Engine::Action::Pass.new(player) if game.government_neutral? && game.founded_factions.size > 1
+
+        row, col = game.government_marker
+        faction = game.factions.select { |f| step.can_buy?(player, f.ipo_shares.first&.to_bundle) }.min_by do |f|
+          frost_neutral_distances[Engine::Game::GFrost1831::ParliamentMovement.move(row, col, f.id)&.join(',')] || 99
+        end
+        Engine::Action::BuyShares.new(player, shares: faction.ipo_shares.first, percent: 10) if faction
       end
 
       def frost_bot_buy(game, step, player)
@@ -634,19 +664,22 @@ describe 'Assets' do
         wanted && corporation.cash >= train.price && step.room?(corporation)
       end
 
-      it 'renders the map to choose the stations of an Intervention' do
-        game = frost_game_until_float
+      def frost_play_until(game, step_class, neutral: false)
         200.times do
           step = game.round.active_step
-          break if step.is_a?(Engine::Game::GFrost1831::Step::Intervention)
+          break if step.is_a?(step_class)
 
           entity = game.current_entity
-          game.process_action(frost_bot_action(game, step, entity, step.actions(entity)))
+          game.process_action(frost_bot_action(game, step, entity, step.actions(entity), neutral: neutral))
         end
-        expect(game.round.active_step).to be_a(Engine::Game::GFrost1831::Step::Intervention)
+        expect(game.round.active_step).to be_a(step_class)
+      end
 
-        player = game.current_entity.owner
-        needs = {
+      def render_frost(game)
+        player = game.active_players.first
+        player = player.owner unless player.player?
+        render(
+          app_route: '/game/1',
           game_data: {
             id: 1,
             user: { id: player.id, name: player.name },
@@ -656,13 +689,23 @@ describe 'Assets' do
             loaded: true,
           },
           user: { id: player.id, name: player.name, settings: { consent: true } },
-        }
-
-        expect(render(app_route: '/game/1', **needs)).to include(
-          'New Grand Junction is being intervened.',
-          'Choose which faction between Guardians and Expansionists receives the station.',
-          'Click a highlighted hex on the map.', 'map-hexes'
         )
+      end
+
+      it 'renders the map to choose the stations of an Intervention' do
+        game = frost_game_until_float
+        frost_play_until(game, Engine::Game::GFrost1831::Step::Intervention)
+
+        expect(render_frost(game)).to include('New Grand Junction is being intervened.',
+                                              'Choose which faction between Guardians and Expansionists receives the station.',
+                                              'Click a highlighted hex on the map.', 'map-hexes')
+      end
+
+      it 'renders the choice of the first Faction to operate' do
+        game = frost_game_until_float
+        frost_play_until(game, Engine::Game::GFrost1831::Step::FirstOperatingFaction, neutral: true)
+
+        expect(render_frost(game)).to include('Which Faction operates first?', 'Technicians', 'Lords')
       end
     end
 

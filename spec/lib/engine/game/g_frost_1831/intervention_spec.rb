@@ -296,7 +296,7 @@ module Engine
           place_station('G14')
           move_to(cm, [6, 2])
           float_dl([7, 1])
-          game.instance_variable_set(:@round, game.operating_round(1))
+          game.instance_variable_set(:@round, game.new_operating_round(1))
           game.round.setup
           expect(game.round.current_operator).to eq(cm)
 
