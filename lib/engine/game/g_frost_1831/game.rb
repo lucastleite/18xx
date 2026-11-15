@@ -18,6 +18,8 @@ require_relative 'step/track'
 require_relative 'step/home_token'
 require_relative 'step/token'
 require_relative 'step/intervention'
+require_relative 'step/pre_turmoil_influence'
+require_relative 'step/turmoil_station_loss'
 require_relative 'step/first_operating_faction'
 require_relative 'step/first_voting_faction'
 require_relative 'step/proposal'
@@ -286,6 +288,8 @@ module Engine
 
         TURMOIL_INFLUENCE_LEVEL = 2
 
+        TURMOIL_FAVOR_LEVEL = 3
+
         REGULATIONS = {
           'R1' => 'Track Laying',
           'R2' => 'Track Upgrade',
@@ -457,7 +461,7 @@ module Engine
             return
           end
 
-          choice = { corporation: corporation, factions: available, reason: reason, place: place }
+          choice = { corporation: corporation, factions: available, reason: reason, place: place, moves_government: !turmoil? }
           @log << "#{corporation.name} gains 1 Influence (#{influence_reason_text(choice)})"
           @pending_influence_queue << choice
           @round&.clear_cache!
@@ -474,7 +478,7 @@ module Engine
 
         def resolve_influence_choice!(faction_sym)
           choice = @pending_influence_queue.shift
-          apply_faction_influence!(choice[:corporation], faction_sym)
+          apply_faction_influence!(choice[:corporation], faction_sym, moves_government: choice[:moves_government])
           execute_deferred_turmoil! if choice[:reason] == :d_train
         end
 
@@ -482,7 +486,7 @@ module Engine
           corporation_influence_for(corporation, faction_sym) < corporation_influence_limit
         end
 
-        attr_reader :government_marker, :intervention, :regulations, :voting_regulation
+        attr_reader :government_marker, :intervention, :regulations, :turmoil_station_loss, :voting_regulation
 
         FACTION_TREASURY = 500
 
@@ -505,6 +509,9 @@ module Engine
           @pending_faction_choices = []
           @pending_influence_queue = []
           @deferred_turmoil = false
+          @turmoil = false
+          @turmoil_players = nil
+          @turmoil_station_loss = nil
           @intervention = nil
           @first_operating_faction = nil
           @intervention_certificates = Hash.new(0)
@@ -649,7 +656,7 @@ module Engine
           @faction_support_pool.delete_at(@faction_support_pool.index(faction_sym))
         end
 
-        def apply_faction_influence!(corporation, faction_sym)
+        def apply_faction_influence!(corporation, faction_sym, moves_government: true)
           @corporation_factions[corporation.id] ||= []
           @corporation_factions[corporation.id] << faction_sym unless @corporation_factions[corporation.id].include?(faction_sym)
 
@@ -665,7 +672,7 @@ module Engine
 
           @corporation_influence[corporation.id][faction_sym] += 1
           faction_influence_gain(faction_sym)
-          move_government(faction_sym)
+          move_government(faction_sym) if moves_government
         end
 
         def support_factions!(corporation, factions)
@@ -855,6 +862,8 @@ module Engine
           GFrost1831::Round::Operating.new(self, [
             Engine::Step::Bankrupt,
             GFrost1831::Step::HomeToken,
+            GFrost1831::Step::PreTurmoilInfluence,
+            GFrost1831::Step::TurmoilStationLoss,
             GFrost1831::Step::Intervention,
             GFrost1831::Step::FirstOperatingFaction,
             GFrost1831::Step::FactionAction,
@@ -986,7 +995,7 @@ module Engine
         end
 
         def close_corporations_in_close_cell!
-          return if @intervention
+          return if @intervention || @turmoil_players || @turmoil_station_loss
 
           corporation = @corporations.find { |c| c.type != :faction && !c.closed? && c.share_price&.type == :close }
           return unless corporation
@@ -1397,13 +1406,47 @@ module Engine
             return
           end
 
-          execute_turmoil_consequences!
+          start_turmoil!
         end
 
         def execute_deferred_turmoil!
           return unless @deferred_turmoil
 
           @deferred_turmoil = false
+          start_turmoil!
+        end
+
+        def start_turmoil!
+          players = @players.reject { |player| use_influence_choices(player).empty? }
+          return execute_turmoil_consequences! if players.empty?
+
+          @turmoil_players = players
+
+          @log << 'Players with Influence may allocate before consequences are calculated.'
+          @round&.clear_cache!
+        end
+
+        def turmoil_player
+          @turmoil_players&.first
+        end
+
+        def use_turmoil_influence!(player, choice)
+          raise GameError, "#{choice} is not available" unless use_influence_choices(player).include?(choice)
+
+          use_player_influence!(player, choice)
+          finish_turmoil_influence!(player) if use_influence_choices(player).empty?
+        end
+
+        def pass_turmoil_influence!(player)
+          @log << "#{player.name} passes on using Influence"
+          finish_turmoil_influence!(player)
+        end
+
+        def finish_turmoil_influence!(player)
+          @turmoil_players.delete(player)
+          return unless @turmoil_players.empty?
+
+          @turmoil_players = nil
           execute_turmoil_consequences!
         end
 
@@ -1418,12 +1461,136 @@ module Engine
           level = ParliamentMovement.polarization_level(*@government_marker)
           @log << "Government: #{faction_display_name(governing)} (Level #{level})"
           @log << "Opposition: #{faction_display_name(opposition)}"
+
+          government_supporter = main_supporter(governing)
+          opposition_supporter = main_supporter(opposition)
+          @turmoil = true
+          apply_government_consequences!(faction_by_id(governing), government_supporter, level)
+          apply_opposition_consequences!(faction_by_id(opposition), opposition_supporter, faction_by_id(governing), level)
+          @turmoil = false
+        end
+
+        def turmoil?
+          @turmoil
+        end
+
+        def main_supporter(faction_sym)
+          supporters = operating_order.select do |corporation|
+            corporation.type != :faction && !corporation.closed? && corporation_factions(corporation).include?(faction_sym)
+          end
+          supporters.max_by { |c| [corporation_influence_for(c, faction_sym), -supporters.index(c)] }
+        end
+
+        def apply_government_consequences!(faction, supporter, level)
+          if supporter
+            from = supporter.share_price
+            @log << "#{supporter.name} (Government supporter) gains market value"
+            @stock_market.move_right(supporter)
+            log_share_price(supporter, from)
+          end
           return if level < self.class::TURMOIL_INFLUENCE_LEVEL
 
-          @log << "#{faction_display_name(governing)} gains 1 Influence in Parliament" if faction_influence_gain(governing)
-          return unless faction_influence_lose(opposition)
+          @log << if faction_influence_gain(faction.id)
+                    "#{faction.full_name} gains 1 Influence in Parliament"
+                  else
+                    "#{faction.full_name} at Parliament limit — Influence not gained"
+                  end
+          gain_turmoil_corporation_influence!(supporter, faction) if supporter
+          grant_turmoil_favor!(supporter, faction) if supporter && level >= self.class::TURMOIL_FAVOR_LEVEL
+        end
 
-          @log << "#{faction_display_name(opposition)} loses 1 Influence in Parliament"
+        def apply_opposition_consequences!(faction, supporter, governing, level)
+          if supporter
+            from = supporter.share_price
+            @log << "#{supporter.name} (Opposition supporter) loses market value"
+            @stock_market.move_left(supporter)
+            log_share_price(supporter, from)
+          end
+          return if level < self.class::TURMOIL_INFLUENCE_LEVEL
+
+          @log << if faction_influence_lose(faction.id)
+                    "#{faction.full_name} loses 1 Influence in Parliament"
+                  else
+                    "#{faction.full_name} has no Influence in Parliament — no loss"
+                  end
+          lose_turmoil_corporation_influence!(supporter, faction) if supporter
+          start_turmoil_station_loss!(supporter, governing) if supporter && level >= self.class::TURMOIL_FAVOR_LEVEL
+        end
+
+        def gain_turmoil_corporation_influence!(corporation, faction)
+          unless within_influence_limit?(corporation, faction.id)
+            @log << "#{corporation.name} has reached the limit of #{corporation_influence_limit} Influence for "\
+                    "#{faction.full_name} (discarded)"
+            return
+          end
+
+          add_corporation_influence!(corporation, faction.id)
+          @log << "#{corporation.name} gains 1 Influence (#{faction.full_name})"
+        end
+
+        def lose_turmoil_corporation_influence!(corporation, faction)
+          unless corporation_influence_for(corporation, faction.id).positive?
+            @log << "#{corporation.name} has no Influence for #{faction.full_name} — no loss"
+            return
+          end
+
+          @corporation_influence[corporation.id][faction.id] -= 1
+          @log << "#{corporation.name} loses 1 Influence (#{faction.full_name})"
+        end
+
+        def grant_turmoil_favor!(corporation, faction)
+          if faction.cash < self.class::FAVOR_AMOUNT
+            @log << "#{faction.full_name} cannot grant a Favor to #{corporation.name} (insufficient Treasury)"
+            return
+          end
+
+          faction.spend(self.class::FAVOR_AMOUNT, corporation)
+          @log << "#{corporation.name} receives Favor (#{format_currency(self.class::FAVOR_AMOUNT)}) from "\
+                  "#{faction.name} (no market penalty)"
+          move_faction_right!(faction) if faction.tokens_available.positive?
+          @favors_used[corporation.id] += 1
+        end
+
+        def start_turmoil_station_loss!(corporation, faction)
+          return unless turmoil_station_loss_possible?(corporation, faction)
+
+          stations = turmoil_stations(corporation, faction)
+
+          @turmoil_station_loss = { corporation: corporation, faction: faction }
+          replace_turmoil_station!(stations.first) if stations.one?
+          @round&.clear_cache!
+        end
+
+        def turmoil_station_loss_possible?(corporation, faction)
+          count = corporation.tokens.count(&:used)
+          reason = if count < 2
+                     "#{corporation.name} has only #{count} station(s) — no loss"
+                   elsif !faction.tokens_available.positive?
+                     "#{faction.full_name} has no available markers — no station loss"
+                   elsif turmoil_stations(corporation, faction).empty?
+                     "#{faction.full_name} already has bases in all #{corporation.name}'s cities — no loss"
+                   end
+          @log << reason if reason
+          reason.nil?
+        end
+
+        def turmoil_stations(corporation = @turmoil_station_loss[:corporation], faction = @turmoil_station_loss[:faction])
+          stations = corporation.tokens.select(&:used)
+          return [] if stations.size < 2 || !faction.tokens_available.positive?
+
+          stations.reject { |token| faction_base_in_hex?(faction, token.city.hex) }
+        end
+
+        def replace_turmoil_station!(token)
+          corporation = @turmoil_station_loss[:corporation]
+          faction = @turmoil_station_loss[:faction]
+          city = token.city
+          @turmoil_station_loss = nil
+          token.destroy!
+          city.place_token(faction, faction.next_base, check_tokenable: false)
+          @log << "#{faction.name} replaces #{corporation.name}'s station on #{city.hex.name} (Turmoil)"
+          move_faction_right!(faction)
+          clear_graph
         end
 
         def regulation_value(regulation_id)
