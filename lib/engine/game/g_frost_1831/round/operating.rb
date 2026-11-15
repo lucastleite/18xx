@@ -13,7 +13,10 @@ module Engine
 
           def start_operating
             entity = @entities[@entity_index]
-            pass_steps_of_other_operators!(entity) unless skip_entity?(entity)
+            unless skip_entity?(entity)
+              pass_steps_of_other_operators!(entity)
+              @game.assign_favor!(entity)
+            end
             super
           end
 
