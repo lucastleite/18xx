@@ -198,6 +198,17 @@ module Engine
                       { type: 'close', on_phase: 'never' }],
         }.freeze
 
+        FAVOR_COMPANY = {
+          sym: 'FAV',
+          name: 'Favor',
+          value: 0,
+          revenue: 0,
+          desc: 'Request Faction Favor: receive £100, lose market value.',
+          abilities: [{ type: 'choose_ability', owner_type: 'corporation', when: 'owning_corp_or_turn', choices: %w[favor] },
+                      { type: 'no_buy' },
+                      { type: 'close', on_phase: 'never' }],
+        }.freeze
+
         INTERVENTION_CARD_COMPANY = {
           sym: 'INT',
           name: 'Intervention Card',

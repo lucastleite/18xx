@@ -26,6 +26,8 @@ require_relative 'step/faction_action'
 require_relative 'step/faction_dividend'
 require_relative 'step/exchange'
 require_relative 'step/special_choose'
+require_relative 'step/favor'
+require_relative 'step/buy_train'
 require_relative 'step/buy_cert'
 require_relative 'step/dividend'
 require_relative 'step/special_track'
@@ -301,6 +303,16 @@ module Engine
 
         R3_OWNERSHIP_LIMITS = [70, 60, 50].freeze
 
+        MAX_FAVORS = 5
+
+        FAVOR_AMOUNT = 100
+
+        FAVOR_PENALTY_WITH_INFLUENCE = [2, 2, 3].freeze
+
+        FAVOR_PENALTY_WITHOUT_INFLUENCE = [3, 4, 4].freeze
+
+        FAVOR_WITHOUT_INFLUENCE = 'none'
+
         NO_CERT_LIMIT_OWNERSHIP = 100
 
         INFLUENCE_ICON = 'influence_cube'
@@ -498,8 +510,18 @@ module Engine
           @intervention_certificates = Hash.new(0)
           @intervention_cards_given = 0
           @corporations_removed = 0
+          @favors_used = Hash.new(0)
+          @favors_this_or = Hash.new(0)
 
           setup_use_influence
+          setup_favor
+          setup_parliament_track
+        end
+
+        def setup_favor
+          @favor_company = Engine::Company.new(**self.class::FAVOR_COMPANY)
+          @companies << @favor_company
+          update_cache(:companies)
         end
 
         def setup_use_influence
@@ -579,9 +601,11 @@ module Engine
           end
 
           influence = corporation_influence(corporation)
-          corporation_factions(corporation).map do |f|
+          rows = corporation_factions(corporation).map do |f|
             ["#{faction_display_name(f)}: #{influence[f] || 0}/#{corporation_influence_limit}", '']
           end
+          rows << ["Favors: #{favors_used(corporation)}/#{self.class::MAX_FAVORS}", ''] if favors_used(corporation).positive?
+          rows
         end
 
         def float_corporation(corporation)
@@ -823,6 +847,7 @@ module Engine
 
         def new_operating_round(round_num = 1)
           @first_operating_faction = governing_faction_sym
+          @favors_this_or = Hash.new(0)
           super
         end
 
@@ -836,6 +861,7 @@ module Engine
             GFrost1831::Step::FactionDividend,
             GFrost1831::Step::ChooseInfluence,
             GFrost1831::Step::SpecialChoose,
+            GFrost1831::Step::Favor,
             GFrost1831::Step::SpecialTrack,
             Engine::Step::BuyCompany,
             GFrost1831::Step::Track,
@@ -843,9 +869,120 @@ module Engine
             Engine::Step::Route,
             GFrost1831::Step::Dividend,
             Engine::Step::DiscardTrain,
-            Engine::Step::BuyTrain,
+            GFrost1831::Step::BuyTrain,
             [Engine::Step::BuyCompany, { blocks: true }],
           ], round_num: round_num)
+        end
+
+        def favor?(company)
+          company == @favor_company
+        end
+
+        def assign_favor!(operator)
+          @favor_company.owner = operator.type == :faction ? nil : operator
+        end
+
+        def after_end_of_operating_turn(_operator)
+          @favor_company.owner = nil
+        end
+
+        def favors_used(corporation)
+          @favors_used[corporation.id]
+        end
+
+        def favors_this_or(corporation)
+          @favors_this_or[corporation.id]
+        end
+
+        def can_request_favor?(corporation)
+          return false if available_favor_factions.empty?
+          return true if forced_train_purchase?(corporation)
+
+          favors_this_or(corporation).zero? && favors_used(corporation) < self.class::MAX_FAVORS
+        end
+
+        def available_favor_factions
+          factions.select { |f| f.cash >= self.class::FAVOR_AMOUNT && f.tokens_available.positive? }
+        end
+
+        def forced_train_purchase?(corporation)
+          must_buy_train?(corporation) && corporation.cash < cheapest_depot_train_price
+        end
+
+        def forced_favor?(corporation)
+          favors_this_or(corporation).positive? && forced_train_purchase?(corporation)
+        end
+
+        def depot_only_train_purchase?(corporation)
+          must_buy_train?(corporation) && favors_this_or(corporation) >= 2
+        end
+
+        def cheapest_depot_train_price
+          @depot.min_depot_train&.price || 0
+        end
+
+        def favor_market_penalty(with_influence)
+          penalties = with_influence ? self.class::FAVOR_PENALTY_WITH_INFLUENCE : self.class::FAVOR_PENALTY_WITHOUT_INFLUENCE
+          penalties[regulation_value('R4')]
+        end
+
+        def favor_choices(corporation)
+          return {} unless can_request_favor?(corporation)
+
+          available_favor_factions.each_with_object({}) do |faction, choices|
+            corporation_factions(corporation).each do |influence|
+              next unless corporation_influence_for(corporation, influence).positive?
+
+              choices["#{faction.id}:#{influence}"] =
+                "Spend #{faction_display_name(influence)} Influence (←#{favor_market_penalty(true)})"
+            end
+            choices["#{faction.id}:#{self.class::FAVOR_WITHOUT_INFLUENCE}"] =
+              "Without spending Influence (←#{favor_market_penalty(false)})"
+          end
+        end
+
+        def grant_favor!(corporation, choice)
+          raise GameError, "#{choice} is not an available Favor" unless favor_choices(corporation).include?(choice)
+
+          faction_id, influence = choice.split(':')
+          faction = faction_by_id(faction_id)
+          with_influence = influence != self.class::FAVOR_WITHOUT_INFLUENCE
+
+          faction.spend(self.class::FAVOR_AMOUNT, corporation)
+          @log << "#{corporation.name} receives Favor (#{format_currency(self.class::FAVOR_AMOUNT)}) from #{faction.name}"
+          give_favor_influence!(corporation, faction, influence) if with_influence
+          move_faction_right!(faction)
+          move_favor_penalty!(corporation, favor_market_penalty(with_influence))
+
+          @favors_used[corporation.id] += 1
+          @favors_this_or[corporation.id] += 1
+        end
+
+        def give_favor_influence!(corporation, faction, influence)
+          @corporation_influence[corporation.id][influence] -= 1
+          @log << if faction_influence_gain(faction.id)
+                    "#{corporation.name} sends Influence from #{influence} to #{faction.name}"
+                  else
+                    "#{corporation.name} sends Influence (#{faction.name} at limit, Influence returned)"
+                  end
+        end
+
+        def move_favor_penalty!(corporation, spaces)
+          from = corporation.share_price
+          spaces.times do
+            @stock_market.move(corporation, @stock_market.left(corporation, corporation.share_price.coordinates), force: true)
+          end
+          log_share_price(corporation, from)
+        end
+
+        def exhausted?(corporation)
+          forced_train_purchase?(corporation) && !can_request_favor?(corporation)
+        end
+
+        def exhaust!(corporation)
+          raise GameError, "#{corporation.name} is not exhausted" unless exhausted?(corporation)
+
+          start_intervention!(corporation)
         end
 
         def close_corporations_in_close_cell!
@@ -971,6 +1108,7 @@ module Engine
           give_intervention_cards!(corporation.owner)
           @corporation_influence.delete(corporation.id)
           @corporation_factions.delete(corporation.id)
+          @favors_used.delete(corporation.id)
           @log << "#{corporation.name} is removed from the game"
           close_corporation(corporation, quiet: true)
           corporation_removed!
@@ -1009,10 +1147,12 @@ module Engine
         def event_parliament_opens!
           @log << "-- Event: New London's Parliament opens! --"
           @parliament_open = true
+          factions.each { |faction| faction.ipoed = true }
+        end
 
+        def setup_parliament_track
           start_price = stock_market.market[FACTION_ROW].find { |p| p&.price == FACTION_START_PRICE }
           factions.each do |faction|
-            faction.ipoed = true
             faction.par_price = start_price
             faction.share_price = start_price
             start_price.corporations << faction

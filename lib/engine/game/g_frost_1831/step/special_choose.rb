@@ -7,6 +7,12 @@ module Engine
     module GFrost1831
       module Step
         class SpecialChoose < Engine::Step::SpecialChoose
+          def actions(entity)
+            return [] unless @game.use_influence?(entity)
+
+            super
+          end
+
           def choices_ability(entity)
             return {} if !@game.use_influence?(entity) || !entity.owner&.player?
 

@@ -161,8 +161,16 @@ module View
         h(:button, { on: { click: close } }, 'Close company')
       end
 
+      def render_favor
+        h(GFrost1831::Favor, corporation: @selected_company.owner)
+      end
+
       def render_ability_choice_buttons
         step = @game.round.step_for(@selected_company, 'choose_ability')
+        if step.respond_to?(:ability_view) && (view = step.ability_view(@selected_company))
+          return h(:div, [send("render_#{view}")])
+        end
+
         ability_choice_buttons = step.choices_ability(@selected_company).map do |choice, label|
           label ||= choice
           click = lambda do
