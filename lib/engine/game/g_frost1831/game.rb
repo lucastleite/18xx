@@ -142,7 +142,7 @@ module Engine
             train_limit: 4,
             tiles: %i[yellow green],
             operating_rounds: 2,
-            status: %w[can_buy_companies],
+            status: %w[can_buy_companies parliament_opens],
           },
           {
             name: '4',
@@ -150,7 +150,7 @@ module Engine
             train_limit: 3,
             tiles: %i[yellow green],
             operating_rounds: 2,
-            status: %w[can_buy_companies],
+            status: %w[can_buy_companies turmoil],
           },
           {
             name: '5',
@@ -158,6 +158,7 @@ module Engine
             train_limit: 2,
             tiles: %i[yellow green brown],
             operating_rounds: 3,
+            status: ['blizzard'],
           },
           {
             name: '6',
@@ -165,6 +166,7 @@ module Engine
             train_limit: 2,
             tiles: %i[yellow green brown],
             operating_rounds: 3,
+            status: ['turmoil'],
           },
           {
             name: 'D',
@@ -172,6 +174,7 @@ module Engine
             train_limit: 2,
             tiles: %i[yellow green brown gray],
             operating_rounds: 3,
+            status: ['turmoil'],
           },
         ].freeze
 
@@ -289,6 +292,10 @@ module Engine
         TURMOIL_INFLUENCE_LEVEL = 2
 
         TURMOIL_FAVOR_LEVEL = 3
+
+        BLIZZARD_ICON = 'blizzard'
+
+        BLIZZARD_SURVIVING_COLORS = %i[green brown gray].freeze
 
         REGULATIONS = {
           'R1' => 'Track Laying',
@@ -512,6 +519,7 @@ module Engine
           @turmoil = false
           @turmoil_players = nil
           @turmoil_station_loss = nil
+          @blizzard_eliminations = []
           @intervention = nil
           @first_operating_faction = nil
           @intervention_certificates = Hash.new(0)
@@ -935,6 +943,21 @@ module Engine
           penalties[regulation_value('R4')]
         end
 
+        def price_movement_chart
+          [
+            %w[Condition Movement],
+            ['Dividends equal to or greater than the share price', '1 →'],
+            ['Dividends above £0 but lower than the share price', 'No change'],
+            ['Withholding dividends', '1 ←'],
+            ['Each share sold by a player', '1 ↓'],
+            ['Sold Out at the end of the SR', '1 ↑'],
+            ['Main Supporter of the Governing Faction during Turmoil', '1 →'],
+            ['Main Supporter of the Opposing Faction during Turmoil', '1 ←'],
+            ['Faction Favor, sending Influence', "#{favor_market_penalty(true)} ←"],
+            ['Faction Favor, without Influence', "#{favor_market_penalty(false)} ←"],
+          ]
+        end
+
         def favor_choices(corporation)
           return {} unless can_request_favor?(corporation)
 
@@ -1052,6 +1075,7 @@ module Engine
         end
 
         def action_processed(action)
+          remove_blizzard_corporations!
           repay_player_loans!
           super
         end
@@ -1115,12 +1139,77 @@ module Engine
           corporation = @intervention[:corporation]
           @intervention = nil
           give_intervention_cards!(corporation.owner)
+          remove_corporation!(corporation)
+        end
+
+        def remove_corporation!(corporation)
           @corporation_influence.delete(corporation.id)
           @corporation_factions.delete(corporation.id)
           @favors_used.delete(corporation.id)
           @log << "#{corporation.name} is removed from the game"
           close_corporation(corporation, quiet: true)
           corporation_removed!
+        end
+
+        def event_blizzard!
+          @log << '-- Event: Blizzard! --'
+          hexes = blizzard_hexes
+          stations = hexes.flat_map { |hex| blizzard_stations(hex) }
+          removed = hexes.select { |hex| clear_blizzard!(hex) }
+          destroyed = stations.map { |token| destroy_blizzard_station!(token) }
+          @log << "Tiles removed: #{removed.map(&:name).join(', ')}" unless removed.empty?
+          @log << "Stations/bases destroyed: #{destroyed.join(', ')}" unless destroyed.empty?
+          clear_graph
+
+          @blizzard_eliminations = stations.map(&:corporation).uniq.select do |corporation|
+            corporation.type != :faction && corporation.tokens.none?(&:used)
+          end
+        end
+
+        def blizzard_hexes
+          @hexes.select { |hex| hex.tile.icons.any? { |icon| icon.name == self.class::BLIZZARD_ICON } }
+        end
+
+        def blizzard_stations(hex)
+          return [] if self.class::BLIZZARD_SURVIVING_COLORS.include?(hex.tile.color)
+
+          hex.tile.cities.flat_map(&:tokens).compact
+        end
+
+        def clear_blizzard!(hex)
+          tile = hex.tile
+          yellow = tile.color == :yellow
+          if yellow
+            collected = new_london_route_icon(hex).nil?
+            hex.lay_downgrade(hex.original_tile)
+            @tiles << tile
+            hex.tile.icons.delete(new_london_route_icon(hex)) if collected
+          end
+          hex.tile.icons.reject! { |icon| icon.name == self.class::BLIZZARD_ICON }
+          yellow
+        end
+
+        def destroy_blizzard_station!(token)
+          corporation = token.corporation
+          hex = token.city.hex
+          corporation.bases_lost += 1 if corporation.type == :faction
+          token.destroy!
+          "#{corporation.name} (#{hex.name})"
+        end
+
+        def crowded_corps
+          super.reject(&:closed?)
+        end
+
+        def remove_blizzard_corporations!
+          return if @blizzard_eliminations.empty?
+
+          corporations = @blizzard_eliminations
+          @blizzard_eliminations = []
+          corporations.each do |corporation|
+            @log << "#{corporation.name} has no stations left after the Blizzard"
+            remove_corporation!(corporation)
+          end
         end
 
         def give_intervention_cards!(player)
