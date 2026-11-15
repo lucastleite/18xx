@@ -709,6 +709,28 @@ describe 'Assets' do
         expect(render_frost(game)).to include('Which Faction operates first?', 'Technicians', 'Lords')
       end
 
+      it 'renders the Influence Arena when players use Influence before the Turmoil' do
+        game = frost_game_until_float
+        400.times do
+          step = game.round.active_step
+          break if step.is_a?(Engine::Game::GFrost1831::Step::PreTurmoilInfluence)
+
+          entity = game.current_entity
+          actions = step.actions(entity)
+          train = game.depot.min_depot_train
+          game.process_action(
+            if actions.include?('buy_train') && entity.cash >= train.price && step.room?(entity)
+              Engine::Action::BuyTrain.new(entity, train: train, price: train.price)
+            else
+              frost_bot_action(game, step, entity, actions)
+            end
+          )
+        end
+        expect(game.round.active_step).to be_a(Engine::Game::GFrost1831::Step::PreTurmoilInfluence)
+
+        expect(render_frost(game)).to include('Use Influence before Turmoil?', 'Influence Arena', '→')
+      end
+
       it 'renders the turn of a Faction' do
         game = frost_game_until_float
         frost_play_until(game, Engine::Game::GFrost1831::Step::FactionAction)
