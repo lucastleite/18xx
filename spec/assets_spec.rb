@@ -732,6 +732,21 @@ describe 'Assets' do
         expect(render_frost(game)).to include('R1. Track Laying Vote', 'Loosen (0◆)', 'Tighten (0◆)', 'Market Regulation',
                                               'Shareholder')
       end
+
+      it 'renders the Favor ability of the operating Corporation' do
+        game = frost_game_until_float
+        favor = game.companies.find { |c| game.favor?(c) }
+        400.times do
+          break if game.round.is_a?(Engine::Round::Operating) && !game.round.actions_for(favor).empty?
+
+          step = game.round.active_step
+          entity = game.current_entity
+          game.process_action(frost_bot_action(game, step, entity, step.actions(entity)))
+        end
+        expect(game.round.actions_for(favor)).to eq(%w[choose_ability])
+
+        expect(render_frost(game)).to include("Favor (#{favor.owner.name})")
+      end
     end
 
     def render_game_at_action(data, action_count, string, suffix = '')

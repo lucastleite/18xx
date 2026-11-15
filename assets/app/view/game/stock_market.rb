@@ -14,6 +14,7 @@ module View
       needs :game
       needs :user, default: nil, store: true
       needs :show_bank, default: true
+      needs :show_price_movement, default: true
       needs :explain_colors, default: false
 
       COLOR_MAP = {
@@ -547,7 +548,7 @@ module View
           children << h('div#legend', legend_items)
         end
 
-        if @game.respond_to?(:price_movement_chart)
+        if @show_price_movement && @game.respond_to?(:price_movement_chart)
           header, *chart = @game.price_movement_chart
 
           rows = chart.map do |r|

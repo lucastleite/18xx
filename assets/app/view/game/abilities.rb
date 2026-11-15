@@ -163,6 +163,11 @@ module View
 
       def render_ability_choice_buttons
         step = @game.round.step_for(@selected_company, 'choose_ability')
+        if step.respond_to?(:ability_views)
+          views = step.ability_views(@selected_company).map { |view, props| h(Object.const_get("View::Game::#{view}"), props) }
+          return h(:div, views)
+        end
+
         ability_choice_buttons = step.choices_ability(@selected_company).map do |choice, label|
           label ||= choice
           click = lambda do
