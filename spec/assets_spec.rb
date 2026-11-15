@@ -676,11 +676,11 @@ describe 'Assets' do
         expect(game.round.active_step).to be_an_instance_of(step_class)
       end
 
-      def render_frost(game)
+      def render_frost(game, tab = '')
         player = game.active_players.first
         player = player.owner unless player.player?
         render(
-          app_route: '/game/1',
+          app_route: "/game/1#{tab}",
           game_data: {
             id: 1,
             user: { id: player.id, name: player.name },
@@ -737,6 +737,14 @@ describe 'Assets' do
 
         expect(render_frost(game)).to include('Lay Track or Place a Base', 'Skip (Track/Base)', 'Influence Cost',
                                               'Lay yellow tile (plain)', 'Place a base')
+      end
+
+      it 'renders the price movement chart and the phase statuses' do
+        game = frost_game_until_float
+
+        expect(render_frost(game, '#market')).to include('Main Supporter of the Governing Faction during Turmoil',
+                                                         'Faction Favor, sending Influence')
+        expect(render_frost(game, '#info')).to include('Parliament Opens', 'Turmoil', 'Blizzard')
       end
 
       it 'renders the Proposal of a Voting Round with the Market Regulation' do
