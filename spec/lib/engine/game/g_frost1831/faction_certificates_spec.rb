@@ -73,6 +73,24 @@ module Engine
           expect(step.can_buy?(p1, tec.ipo_shares.first.to_bundle)).to be(false)
         end
 
+        it 'respects the certificate limit' do
+          start_stock_round
+          allow(game).to receive(:num_certs).and_return(game.cert_limit(p1))
+
+          expect(step.can_buy?(p1, tec.ipo_shares.first.to_bundle)).to be(false)
+        end
+
+        it 'does not buy back a Faction sold in the same Stock Round' do
+          start_stock_round
+          tec.ipo_shares.first.transfer(p1)
+          tec.ipo_shares.first.transfer(p1)
+          game.faction_influence_gain('TEC')
+          sell(p1, tec)
+
+          expect(game.exception&.message).to be_nil
+          expect(step.can_buy?(p1, tec.ipo_shares.first.to_bundle)).to be(false)
+        end
+
         it 'founds the Faction at 40% and asks for a reserved city' do
           start_stock_round
           tec.ipo_shares.first.transfer(p1)

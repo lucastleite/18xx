@@ -17,6 +17,8 @@ module Engine
 
             can_gain_faction_certificate?(entity, faction) &&
               bundle.owner == faction.ipo_owner &&
+              !@round.players_sold[entity][faction] &&
+              @game.num_certs(entity) < @game.cert_limit(entity) &&
               entity.cash >= @game.faction_share_price(faction)
           end
 
