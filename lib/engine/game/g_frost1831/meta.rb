@@ -8,7 +8,7 @@ module Engine
       module Meta
         include Game::Meta
 
-        DEV_STAGE = :prealpha
+        DEV_STAGE = :alpha
 
         GAME_TITLE = 'Frost 1831'.freeze
         GAME_ISSUE_LABEL = 'frost1831'
@@ -17,7 +17,7 @@ module Engine
         GAME_DESIGNER = 'Alexandre Madu'.freeze
         GAME_IMPLEMENTER = 'Lucas Leite'.freeze
 
-        GAME_INFO_URL = nil
+        GAME_INFO_URL = 'https://github.com/tobymao/18xx/wiki/Frost-1831'
         GAME_LOCATION = 'New London'.freeze
         GAME_PUBLISHER = nil
         GAME_RULES_URL = 'https://boardgamegeek.com/filepage/331178/rulebook-v0933'
@@ -30,6 +30,11 @@ module Engine
             sym: :parliamentary_intervention,
             short_name: 'Parliamentary Intervention',
             desc: "A player's 2nd corporation must support at least 1 faction not supported by their 1st",
+          },
+          {
+            sym: :tight_regulation,
+            short_name: 'Tight Regulation',
+            desc: 'All 4 Market Regulation criteria begin at Tight Regulation',
           },
         ].freeze
       end

@@ -61,7 +61,7 @@ module View
           left << h(Choose) if @current_actions.include?('choose')
           left << h(BuyToken, entity: entity) if @current_actions.include?('buy_token')
 
-          if @current_actions.include?('buy_train') || @current_actions.include?('sell_train')
+          if @current_actions.include?('buy_train') || @current_actions.include?('sell_train') || train_exchanges?(entity)
             left << h(IssueShares) if @current_actions.include?('sell_shares') || @current_actions.include?('buy_shares')
             left << h(BuyTrains)
           elsif @current_actions.include?('buy_power')
@@ -176,6 +176,10 @@ module View
           return [] unless @step.respond_to?(:entity_views)
 
           @step.entity_views(entity).map { |view, props| h(Object.const_get("View::Game::#{view}"), props) }
+        end
+
+        def train_exchanges?(entity)
+          @step.respond_to?(:extra_train_exchanges) && !@step.extra_train_exchanges(entity).empty?
         end
 
         def render_choice_corporations

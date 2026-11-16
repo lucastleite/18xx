@@ -283,6 +283,18 @@ module View
           end
         end
 
+        exchanges = @step.respond_to?(:extra_train_exchanges) ? @step.extra_train_exchanges(@corporation) : []
+        unless exchanges.empty?
+          children << h(:h3, 'Upgrade Trains')
+          exchanges.each do |exchange|
+            choose = -> { process_action(Engine::Action::Choose.new(@corporation, choice: exchange[:choice])) }
+            children << h(:div, [
+              "#{exchange[:from]} → #{exchange[:to]} ",
+              h('button.no_margin', { on: { click: choose } }, exchange[:label]),
+            ])
+          end
+        end
+
         children << h(:h3, 'Remaining Trains')
         children << remaining_trains
 
