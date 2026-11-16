@@ -676,7 +676,7 @@ describe 'Assets' do
         expect(game.round.active_step).to be_an_instance_of(step_class)
       end
 
-      def render_frost(game, tab = '')
+      def render_frost(game, tab = '', optional_rules: [])
         player = game.active_players.first
         player = player.owner unless player.player?
         render(
@@ -686,6 +686,7 @@ describe 'Assets' do
             user: { id: player.id, name: player.name },
             players: game.players.sort_by(&:id).map { |p| { id: p.id, name: p.name } },
             title: 'Frost 1831',
+            settings: { optional_rules: optional_rules },
             actions: game.actions.map(&:to_h),
             loaded: true,
           },
@@ -745,6 +746,27 @@ describe 'Assets' do
         expect(render_frost(game, '#market')).to include('Main Supporter of the Governing Faction during Turmoil',
                                                          'Faction Favor, sending Influence')
         expect(render_frost(game, '#info')).to include('Parliament Opens', 'Turmoil', 'Blizzard')
+      end
+
+      it 'renders the Supporter Bypass in the train-buying step' do
+        game = frost_game_until_float
+        400.times do
+          step = game.round.active_step
+          entity = game.current_entity
+          break if step.is_a?(Engine::Game::GFrost1831::Step::BuyTrain) && step.actions(entity).include?('choose')
+
+          game.process_action(frost_bot_action(game, step, entity, step.actions(entity)))
+        end
+
+        expect(render_frost(game)).to include('Upgrade Trains', 'Influence by', '◆')
+      end
+
+      it 'renders the optional rules in the Info tab' do
+        game = Engine::Game::GFrost1831::Game.new({ 1 => 'Player 1', 2 => 'Player 2', 3 => 'Player 3' },
+                                                  id: 1, optional_rules: [:tight_regulation])
+
+        expect(render_frost(game, '#info', optional_rules: [:tight_regulation]))
+          .to include('Tight Regulation', 'All 4 Market Regulation criteria begin at Tight Regulation')
       end
 
       it 'renders the Proposal of a Voting Round with the Market Regulation' do

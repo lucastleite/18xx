@@ -11,6 +11,7 @@ require_relative 'stock_market'
 require_relative 'round/stock'
 require_relative 'round/operating'
 require_relative 'round/voting'
+require_relative 'round/final_resolution'
 require_relative 'step/buy_sell_par_shares'
 require_relative 'step/choose_factions'
 require_relative 'step/choose_influence'
@@ -67,15 +68,7 @@ module Engine
           { lay: :not_if_upgraded, upgrade: false },
         ].freeze
 
-        GAME_END_CHECK = { bank: :full_or, custom: :one_more_full_or_set }.freeze
-
-        GAME_END_REASONS_TEXT = Base::GAME_END_REASONS_TEXT.merge(
-          custom: 'First D train is purchased'
-        )
-
-        GAME_END_REASONS_TIMING_TEXT = Base::GAME_END_REASONS_TIMING_TEXT.merge(
-          one_more_full_or_set: 'Finish current OR, then 1 more full set (SR + Voting + ORs)'
-        )
+        GAME_END_CHECK = { bank: :full_or }.freeze
 
         EBUY_OWNER_MUST_HELP = false
 
@@ -222,7 +215,7 @@ module Engine
             price: 1100,
             num: 'unlimited',
             available_on: '6',
-            discount: { '4' => 300, '5' => 300, '6' => 300, '4◆' => 300, '5◆' => 300, '6◆' => 300 },
+            discount: { '4' => 300, '5' => 300, '6' => 300 },
             events: [{ 'type' => 'turmoil' }],
           },
         ].freeze
@@ -234,12 +227,6 @@ module Engine
           '5' => 'The Queen',
           '6' => 'Nightmare',
           'D' => 'Silver Bullet',
-          '2◆' => 'Hope ◆',
-          '3◆' => 'Long John ◆',
-          '4◆' => 'Ice Breaker ◆',
-          '5◆' => 'The Queen ◆',
-          '6◆' => 'Nightmare ◆',
-          'D◆' => 'Silver Bullet ◆',
         }.freeze
 
         EVENTS_TEXT = Base::EVENTS_TEXT.merge(
@@ -294,6 +281,16 @@ module Engine
         TURMOIL_FAVOR_LEVEL = 3
 
         BLIZZARD_ICON = 'blizzard'
+        NEW_LONDON_LABEL = 'NL'
+        NORTH_ICON = 'N'
+        SOUTH_ICON = 'S'
+        EAST_ICON = 'E'
+        NORTH_SOUTH_BONUS = 50
+        EAST_BONUS = 70
+        SUPPORTER_BYPASS_MARK = '◆'
+
+        SUPPORTER_BYPASS_CHOICE = 'diamond'
+        FINAL_INFLUENCE_PER_TOKEN = 4
 
         BLIZZARD_SURVIVING_COLORS = %i[green brown gray].freeze
 
@@ -358,32 +355,73 @@ module Engine
         # Track when bank breaks so D train doesn't override it
         def end_now?(after)
           @bank_broken_trigger ||= true if after == :full_or && @bank.broken?
+          return true if @round.is_a?(GFrost1831::Round::FinalResolution)
 
           super
         end
 
-        def game_end_check_custom?
-          @d_train_bought
+        def end_game!(game_end_reason)
+          return super if %i[manually_ended dnf].include?(game_end_reason)
+          return if start_final_resolution!
+
+          move_final_influence!
+          convert_final_influence!
+          super
         end
 
-        # The game ends when the bank breaks.
-        def game_end_check_values
-          { bank: :full_or }
+        def start_final_resolution!
+          return false if @final_resolution
+
+          @final_resolution = true
+          @log << '-- Final Resolution --'
+          @log << '-- Event: Endgame Turmoil! --'
+          start_turmoil!
+          return false if !@turmoil_players && !@turmoil_station_loss
+
+          @round = GFrost1831::Round::FinalResolution.new(self, [
+            GFrost1831::Step::PreTurmoilInfluence,
+            GFrost1831::Step::TurmoilStationLoss,
+          ])
+          true
+        end
+
+        def move_final_influence!
+          @corporations.reject { |c| c.type == :faction || c.closed? }.each do |corporation|
+            corporation_influence(corporation).each do |faction_sym, count|
+              next unless count.positive?
+
+              @faction_influence[faction_sym] += count
+              @log << "#{corporation.name} moves #{count} Influence to #{faction_display_name(faction_sym)}"
+            end
+            @corporation_influence[corporation.id] = {}
+          end
+        end
+
+        def convert_final_influence!
+          founded_factions.each do |faction|
+            tokens = [(faction_influence(faction.id).to_f / self.class::FINAL_INFLUENCE_PER_TOKEN).floor,
+                      faction.tokens_available].min
+            next unless tokens.positive?
+
+            influence = faction_influence(faction.id)
+            tokens.times { @stock_market.move_right(faction) }
+            @log << "#{faction.full_name} has #{influence} Influence and converts into #{tokens} "\
+                    "token#{tokens == 1 ? '' : 's'}. #{faction.name}'s value increases to "\
+                    "#{format_currency(faction.share_price.price)}"
+          end
+        end
+
+        def info_train_name(train)
+          thematic = self.class::TRAIN_NAMES[train.name]
+          thematic ? "#{super} (#{thematic})" : super
         end
 
         def game_ending_description
           reason, after = game_end_check
-          return unless after
+          return if !after || reason != :bank
+          return "Game ends at conclusion of OR #{@turn}.#{operating_rounds}" if @round.is_a?(Engine::Round::Operating)
 
-          if @d_train_bought && @final_turn
-            "Game ends at conclusion of OR #{@final_turn}.#{@phase.operating_rounds}"
-          elsif reason == :bank
-            if @round.is_a?(Engine::Round::Operating)
-              "Game ends at conclusion of OR #{@turn}.#{operating_rounds}"
-            else
-              'Game ends at conclusion of the next full OR set'
-            end
-          end
+          'Game ends at conclusion of the next full OR set'
         end
 
         def share_price_changed(entity, from)
@@ -447,6 +485,137 @@ module Engine
           move_government(faction.id)
         end
 
+        def supporter_bypass?(train)
+          @supporter_bypass_trains.key?(train.id)
+        end
+
+        def supporter_bypass_options(corporation)
+          factions = corporation_factions(corporation).select { |f| corporation_influence_for(corporation, f).positive? }
+          corporation.trains.reject { |train| supporter_bypass?(train) }.uniq(&:name).product(factions)
+        end
+
+        def supporter_bypass_choice(train, faction_sym)
+          "#{self.class::SUPPORTER_BYPASS_CHOICE}_#{train.id}_#{faction_sym}"
+        end
+
+        def supporter_bypass_label(faction_sym)
+          "Influence by #{faction_display_name(faction_sym)}"
+        end
+
+        def supporter_bypass_choices(corporation)
+          supporter_bypass_options(corporation).to_h do |train, faction_sym|
+            [supporter_bypass_choice(train, faction_sym),
+             "#{train.name} → #{train.name}#{self.class::SUPPORTER_BYPASS_MARK}: #{supporter_bypass_label(faction_sym)}"]
+          end
+        end
+
+        def move_influence_to_train!(corporation, choice)
+          available = supporter_bypass_choices(corporation).key?(choice)
+          raise GameError, "#{corporation.name} cannot use that Supporter Bypass" unless available
+
+          _, train_id, faction_sym = choice.split('_')
+          train = corporation.trains.find { |t| t.id == train_id }
+          @corporation_influence[corporation.id][faction_sym] -= 1
+          @supporter_bypass_trains[train.id] = faction_sym
+          @log << "#{corporation.name} moves 1 #{faction_display_name(faction_sym)} Influence onto a #{train.name}-train "\
+                  '(Supporter Bypass)'
+        end
+
+        def trains_str(corporation)
+          return super if corporation.trains.none? { |train| supporter_bypass?(train) }
+
+          [corporation.trains.map { |train| supporter_bypass_name(train) }.join(' ')]
+        end
+
+        def supporter_bypass_name(train)
+          supporter_bypass?(train) ? "#{train.name}#{self.class::SUPPORTER_BYPASS_MARK}" : train.name
+        end
+
+        def check_connected(route, corporation)
+          return super unless supporter_bypass?(route.train)
+
+          factions = corporation_factions(corporation)
+          connected = route.ordered_paths.each_cons(2).all? do |a, b|
+            a.connects_to?(b, corporation) || bypasses_supporter_city?(a, b, factions)
+          end
+          raise GameError, 'Route is not connected' unless connected
+        end
+
+        def bypasses_supporter_city?(path, next_path, factions)
+          [path.a, path.b].any? do |part|
+            part.city? && next_path.nodes.include?(part) &&
+              part.tokens.any? { |token| token && factions.include?(token.corporation.id) }
+          end
+        end
+
+        def graph_for_entity(entity)
+          return super unless supporter_bypass_routes?(entity)
+
+          @supporter_bypass_graph ||= Graph.new(self, no_blocking: true)
+        end
+
+        def supporter_bypass_routes?(entity)
+          return false if @finding_route_step || !entity.corporation? || entity.trains.none? { |t| supporter_bypass?(t) }
+
+          route_step_active?
+        end
+
+        def route_step_active?
+          @finding_route_step = true
+          @round.active_step.is_a?(Engine::Step::Route)
+        ensure
+          @finding_route_step = false
+        end
+
+        def clear_graph
+          super
+          @supporter_bypass_graph&.clear
+        end
+
+        def clear_graph_for_entity(entity)
+          super
+          @supporter_bypass_graph&.clear
+        end
+
+        def check_other(route)
+          hex = route.visited_stops.map(&:hex).group_by(&:itself).find { |_, visits| visits.size > 1 }&.first
+          raise GameError, "Route cannot stop twice in #{hex.name}" if hex
+        end
+
+        def revenue_for(route, stops)
+          super + route_bonuses(stops).sum { |_, amount| amount }
+        end
+
+        def revenue_str(route)
+          [super, *route_bonuses(route.visited_stops).map { |name, amount| "#{name}(+#{amount})" }].join(' + ')
+        end
+
+        def route_bonuses(stops)
+          hexes = stops.map(&:hex)
+          return [] if hexes.none? { |hex| hex.tile.label.to_s == self.class::NEW_LONDON_LABEL }
+
+          bonuses = []
+          if route_region?(hexes, self.class::NORTH_ICON) && route_region?(hexes, self.class::SOUTH_ICON)
+            bonuses << ['S-NL-N', self.class::NORTH_SOUTH_BONUS]
+          end
+          east = hexes.count { |hex| region_hexes(self.class::EAST_ICON).include?(hex) }
+          bonuses << ['NL-E', self.class::EAST_BONUS * east] if east.positive?
+          bonuses
+        end
+
+        def route_region?(hexes, icon)
+          hexes.intersect?(region_hexes(icon))
+        end
+
+        def region_hexes(icon)
+          @region_hexes ||= {}
+          @region_hexes[icon] ||= begin
+            marked = @hexes.select { |hex| hex.tile.icons.any? { |i| i.name == icon } }
+            groups = marked.flat_map { |hex| hex.tile.offboards.flat_map(&:groups) }
+            @hexes.select { |hex| marked.include?(hex) || hex.tile.offboards.any? { |o| o.groups.intersect?(groups) } }
+          end
+        end
+
         def new_london_route_icon(hex)
           hex.tile.icons.find { |icon| icon.name == self.class::INFLUENCE_ICON }
         end
@@ -503,7 +672,7 @@ module Engine
           @government_marker = GOVERNMENT_START.dup
           @faction_influence = Hash.new(0)
           @parliament_open = false
-          @regulations = REGULATIONS.transform_values { |name| { name: name, position: NORMAL } }
+          @regulations = REGULATIONS.transform_values { |name| { name: name, position: starting_regulation } }
           @player_influence = Hash.new(0)
 
           factions.each { |faction| @bank.spend(self.class::FACTION_TREASURY, faction) }
@@ -527,10 +696,20 @@ module Engine
           @corporations_removed = 0
           @favors_used = Hash.new(0)
           @favors_this_or = Hash.new(0)
+          @supporter_bypass_trains = {}
 
           setup_use_influence
           setup_favor
           setup_parliament_track
+          apply_r3_limits if tight_regulation?
+        end
+
+        def tight_regulation?
+          @optional_rules&.include?(:tight_regulation)
+        end
+
+        def starting_regulation
+          tight_regulation? ? self.class::TIGHT : self.class::NORMAL
         end
 
         def setup_favor

@@ -115,6 +115,60 @@ module Engine
             expect(city.tokened_by?(tv)).to be(true)
           end
         end
+
+        describe 'station hexes' do
+          let(:game) { new_game(3) }
+          let(:gj) { game.corporation_by_id('GJ') }
+
+          before do
+            par = game.stock_market.par_prices.find { |price| price.price == 100 }
+            gj.ipoed = true
+            gj.par_price = par
+            gj.share_price = par
+            5.times { game.share_pool.transfer_shares(gj.ipo_shares.first.to_bundle, game.players.first) }
+            game.bank.spend(500, gj)
+            game.place_home_token(gj)
+            game.instance_variable_set(:@round, game.operating_round(1))
+            game.round.goto_entity!(gj)
+          end
+
+          it 'does not highlight a reachable hex where the Corporation already has a station' do
+            home = game.hex_by_id('M6')
+            step = game.round.steps.find { |s| s.is_a?(Step::Token) }
+
+            expect(game.token_graph_for_entity(gj).reachable_hexes(gj)).to include(home)
+            expect(step.available_hex(gj, home)).to be_falsey
+          end
+        end
+
+        it 'ends only when the Bank breaks' do
+          expect(Game::GAME_END_CHECK).to eq(bank: :full_or)
+        end
+
+        it 'shows the thematic train names in the Info tab' do
+          game = new_game(3)
+          names = %w[2 3 4 5 6 D].map { |name| game.info_train_name(game.depot.upcoming.find { |t| t.name == name }) }
+
+          expect(names).to eq(['2 (Hope)', '3 (Long John)', '4 (Ice Breaker)', '5 (The Queen)', '6 (Nightmare)',
+                               'D (Silver Bullet)'])
+        end
+
+        describe 'Tight Regulation' do
+          it 'starts every Market Regulation at Normal by default' do
+            game = new_game(3)
+
+            expect(Game::REGULATIONS.keys.map { |r| game.regulation_value(r) }.uniq).to eq([Game::NORMAL])
+          end
+
+          it 'starts every Market Regulation at Tight with the optional rule' do
+            game = Engine::Game::GFrost1831::Game.new(%w[P1 P2 P3], id: 1, optional_rules: [:tight_regulation])
+
+            expect(Game::REGULATIONS.keys.map { |r| game.regulation_value(r) }.uniq).to eq([Game::TIGHT])
+            expect(game.corporation_by_id('CM').max_ownership_percent).to eq(50)
+            expect(game.favor_market_penalty(true)).to eq(3)
+            expect(game.favor_market_penalty(false)).to eq(4)
+          end
+        end
       end
     end
   end

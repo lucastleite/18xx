@@ -10,9 +10,16 @@ module Engine
           EXHAUST = 'exhaust'
 
           def actions(entity)
-            return super if entity != current_entity || !must_buy_train?(entity)
+            actions = super
+            return actions if entity != current_entity
+            return forced_purchase_actions(entity, actions) if must_buy_train?(entity)
 
-            actions = (super - %w[pass]) | %w[buy_train]
+            actions |= %w[choose pass] unless @game.supporter_bypass_choices(entity).empty?
+            actions
+          end
+
+          def forced_purchase_actions(entity, actions)
+            actions = (actions - %w[pass]) | %w[buy_train]
             actions << 'choose' if @game.exhausted?(entity)
             actions
           end
@@ -25,16 +32,41 @@ module Engine
           end
 
           def choice_name
+            return 'Supporter Bypass: move 1 Influence onto a train' unless @game.exhausted?(current_entity)
+
             "#{current_entity.name} cannot buy a train and no Faction can grant a Favor"
           end
 
           def choices
+            return @game.supporter_bypass_choices(current_entity) unless @game.exhausted?(current_entity)
+
             { EXHAUST => 'Faction Exhaustion (Intervention)' }
           end
 
+          def render_choices?
+            @game.exhausted?(current_entity)
+          end
+
+          def extra_train_exchanges(corporation)
+            @game.supporter_bypass_options(corporation).map do |train, faction_sym|
+              {
+                from: train.name,
+                to: "#{train.name}#{@game.class::SUPPORTER_BYPASS_MARK}",
+                choice: @game.supporter_bypass_choice(train, faction_sym),
+                label: @game.supporter_bypass_label(faction_sym),
+              }
+            end
+          end
+
           def process_choose(action)
+            return @game.move_influence_to_train!(action.entity, action.choice) unless action.choice == EXHAUST
+
             @game.exhaust!(action.entity)
             pass!
+          end
+
+          def pass_if_cannot_buy_train?(entity)
+            @game.supporter_bypass_choices(entity).empty?
           end
 
           def ebuy_president_can_contribute?(_corporation)
