@@ -8,7 +8,9 @@ module Engine
       module Step
         class Token < Engine::Step::Token
           def available_hex(entity, hex)
-            super && !hex.tile.cities.all? { |city| @game.reserved_for_faction?(city) }
+            super && hex.tile.cities.any? do |city|
+              !@game.reserved_for_faction?(city) && city.tokenable?(entity, free: true)
+            end
           end
 
           def place_token(entity, city, token, **kwargs)
