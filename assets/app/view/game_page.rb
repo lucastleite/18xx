@@ -138,6 +138,8 @@ module View
           h(Game::Tools, game: @game, game_data: @game_data, user: @user)
         when 'auto'
           h(Game::Auto, game: @game, game_data: @game_data, user: @user)
+        else
+          render_extra_tab
         end
       LOGGER.debug do
         "Done rendering game view: #{Time.now - @_logger[:render]} seconds"
@@ -303,8 +305,16 @@ module View
             button_click('hist_' + key)
             event.preventDefault
           end
+        else
+          tab = @game&.extra_game_tabs&.find { |t| t[:key] == key }
+          change_anchor("##{tab[:anchor]}") if tab
         end
       end
+    end
+
+    def render_extra_tab
+      tab = @game.extra_game_tabs.find { |t| t[:anchor] == route_anchor }
+      h(Object.const_get("View::Game::#{tab[:view]}"), game: @game) if tab
     end
 
     def game_path
@@ -361,6 +371,7 @@ module View
       menu_items = []
       menu_items << item('G|ame', '')
       menu_items << item('E|ntities', '#entities')
+      @game.extra_game_tabs.each { |tab| menu_items << item(tab[:title], "##{tab[:anchor]}") }
       menu_items << item('M|ap', '#map') unless @game.layout == :none
       menu_items << item('Mark|et', '#market')
       menu_items << item('I|nfo', '#info')

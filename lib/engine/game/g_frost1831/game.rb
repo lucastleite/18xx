@@ -280,6 +280,10 @@ module Engine
 
         TURMOIL_FAVOR_LEVEL = 3
 
+        EXTRA_GAME_TABS = [
+          { title: 'P|arliament', anchor: 'parliament', view: 'GFrost1831::Parliament', key: 'p' }.freeze,
+        ].freeze
+
         BLIZZARD_ICON = 'blizzard'
         NEW_LONDON_LABEL = 'NL'
         NORTH_ICON = 'N'
@@ -673,6 +677,7 @@ module Engine
           @faction_influence = Hash.new(0)
           @parliament_open = false
           @regulations = REGULATIONS.transform_values { |name| { name: name, position: starting_regulation } }
+          @locked_regulations = []
           @player_influence = Hash.new(0)
 
           factions.each { |faction| @bank.spend(self.class::FACTION_TREASURY, faction) }

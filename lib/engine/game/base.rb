@@ -149,6 +149,8 @@ module Engine
 
       AXES = nil
 
+      EXTRA_GAME_TABS = [].freeze
+
       TRAINS = [].freeze
 
       # Array of groups (arrays) of train names; trains within a group cannot
@@ -1097,6 +1099,10 @@ module Engine
 
       def layout
         self.class::LAYOUT
+      end
+
+      def extra_game_tabs
+        self.class::EXTRA_GAME_TABS
       end
 
       def axes
