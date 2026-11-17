@@ -207,6 +207,9 @@ module View
         if (@diff_corp_sizes = @game.all_corporations.any? { |c| @game.corporation_size(c) != :small })
           extra << h(:th, render_sort_link('Size', :corp_size))
         end
+        @game.spreadsheet_extra_columns.each do |column|
+          extra << h(:th, render_sort_link(column, extra_sort_key(column)))
+        end
         @extra_size = extra.size
 
         connection_run_header = @game.respond_to?(:connection_run) ? [h(:th, th_props[1, false], '')] : []
@@ -294,6 +297,10 @@ module View
             children: text,
           ),
         ]
+      end
+
+      def extra_sort_key(column)
+        "extra_#{column}"
       end
 
       def sort_order_icon
@@ -387,9 +394,13 @@ module View
           [operating_order, c]
         end
 
+        extra_column = @game.spreadsheet_extra_columns.find { |column| extra_sort_key(column) == @spreadsheet_sort_by }
+
         result.sort_by! do |operating_order, corporation|
           if @spreadsheet_sort_by.is_a?(Array)
             corporation.operating_history[@spreadsheet_sort_by]&.revenue || -1
+          elsif extra_column
+            @game.spreadsheet_extra_sort_value(corporation, extra_column)
           else
             case @spreadsheet_sort_by
             when :id
@@ -518,6 +529,9 @@ module View
           end
         end
         extra << h(:td, @game.corporation_size_name(corporation)) if @diff_corp_sizes
+        @game.spreadsheet_extra_columns.each do |column|
+          extra << h(:td, @game.spreadsheet_extra_value(corporation, column))
+        end
 
         n_ipo_shares = num_ipo_shares(corporation)
         n_market_shares = num_shares_of(@game.share_pool, corporation)
