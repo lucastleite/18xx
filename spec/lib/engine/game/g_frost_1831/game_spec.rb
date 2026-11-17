@@ -15,6 +15,14 @@ module Engine
           expect(Meta::GAME_ALIASES).to eq(['1831'])
         end
 
+        it 'adds the Influence limits to the phase table' do
+          game = new_game(3)
+
+          expect(game.phase_extra_columns).to eq(['◆ Corp Limit', '◆ Faction Limit'])
+          expect(game.phase.phases.map { |phase| game.phase_extra_columns.map { |c| game.phase_extra_value(phase, c) } })
+            .to eq([[3, 6], [4, 6], [4, 6], [5, 8], [5, 8], [5, 10]])
+        end
+
         it 'adds the Parliament tab' do
           expect(new_game(3).extra_game_tabs.map { |tab| tab[:anchor] }).to eq(['parliament'])
         end
