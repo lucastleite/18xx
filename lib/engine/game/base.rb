@@ -3359,6 +3359,16 @@ module Engine
 
       def corporation_size_name(_entity); end
 
+      def spreadsheet_extra_columns
+        []
+      end
+
+      def spreadsheet_extra_value(_corporation, _column); end
+
+      def spreadsheet_extra_sort_value(_corporation, _column)
+        0
+      end
+
       def company_status_str(_company); end
 
       def status_str(_corporation); end

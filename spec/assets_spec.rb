@@ -686,6 +686,11 @@ describe 'Assets' do
         render_game_at_action(data.dup, 250, ['CM → Guardians</button>', 'min-width: min-content'])
       end
 
+      it 'shows the Favors and Influence columns in the spreadsheet' do
+        data = JSON.parse(File.read('spec/fixtures/frost_1831/hs_fqaxxsno_1794865941.json'))
+        render_game_at_action(data, 300, %w[Favors 4/5 5/8], '#spreadsheet')
+      end
+
       def render_frost(game, tab = '', optional_rules: [])
         player = game.active_players.first
         player = player.owner unless player.player?
