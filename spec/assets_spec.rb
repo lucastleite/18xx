@@ -387,6 +387,7 @@ describe 'Assets' do
       expect(render(app_route: '/game/1#spreadsheet', **needs)).to include('Value')
       expect(render(app_route: '/game/1#tools', **needs)).to include('Clone Game')
       expect(render(app_route: '/game/1#auto', **needs)).to include('Auto Actions')
+      expect(render(app_route: '/game/1', **needs)).not_to include('arliament')
     end
 
     it 'renders Minor E track controls with only the blue-terrain point remaining' do
@@ -746,6 +747,14 @@ describe 'Assets' do
         expect(render_frost(game, '#market')).to include('Main Supporter of the Governing Faction during Turmoil',
                                                          'Faction Favor, sending Influence')
         expect(render_frost(game, '#info')).to include('Parliament Opens', 'Turmoil', 'Blizzard')
+      end
+
+      it 'renders the Parliament tab' do
+        game = frost_game_until_float
+
+        expect(render_frost(game)).to include('#parliament')
+        expect(render_frost(game, '#parliament')).to include('New London', 'Influence Arena',
+                                                             'Market Regulation', 'Turmoils', 'OPPOSITION')
       end
 
       it 'renders the Supporter Bypass in the train-buying step' do
