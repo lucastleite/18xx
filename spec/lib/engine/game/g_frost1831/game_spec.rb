@@ -54,6 +54,14 @@ module Engine
           end
         end
 
+        it 'lists the Factions before the Corporations on the player card' do
+          game = Engine::Game.load(JSON.parse(File.read('spec/fixtures/frost1831/hs_fqaxxsno_1794865941.json')), at_action: 300)
+          player = game.players.find { |p| p.name == 'Player 2' }
+          shares = player.shares_by_corporation.reject { |_, s| s.empty? }
+
+          expect(game.player_shares_sort(player, shares).map { |c, _| c.name }).to eq(%w[LOR GUA HF])
+        end
+
         it 'plays with 2 to 5 players' do
           expect(Meta::PLAYER_RANGE).to eq([2, 5])
         end

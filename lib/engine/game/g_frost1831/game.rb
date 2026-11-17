@@ -765,6 +765,11 @@ module Engine
           super(factions) + super(others)
         end
 
+        def player_shares_sort(player, shares_by_corporation)
+          factions, others = shares_by_corporation.partition { |c, _| c.type == :faction }
+          super(player, factions) + super(player, others)
+        end
+
         def sorted_corporations
           start = faction_order.index(governing_faction_sym || @first_operating_faction) || 0
           arena = faction_order.rotate(start).map { |sym| corporation_by_id(sym) }
