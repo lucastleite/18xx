@@ -154,7 +154,6 @@ module Engine
           expect(game.factions.select { |f| exchange.can_exchange?(affiliate, f.ipo_shares.first.to_bundle) })
             .to match_array(game.factions)
           expect(tec.ipo_shares.first.president).to be(false)
-          # the Exchange buttons on the Faction charter and in the abilities panel get a Share
           expect(step.can_gain?(p1, tec.ipo_shares.first, exchange: true)).to be(true)
 
           game.process_action(Engine::Action::BuyShares.new(affiliate, shares: tec.ipo_shares.first, percent: 20))
