@@ -180,6 +180,7 @@ module Engine
 
             expect(step).to be_a(GFrost1831::Step::FirstVotingFaction)
             expect(step.choice_name).to eq('Which Faction votes first?')
+            expect(step.logo_choices?).to be(true)
 
             game.process_action(Engine::Action::Choose.new(p1, choice: 'GUA'))
 

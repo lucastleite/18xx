@@ -27,6 +27,10 @@ module Engine
             [chooser]
           end
 
+          def logo_choices?
+            true
+          end
+
           def description
             'Choose the first Faction'
           end
