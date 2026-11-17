@@ -59,7 +59,7 @@ module Engine
           end
 
           def choice_view
-            :intervention_choice
+            :intervention_map if @round.stock?
           end
 
           def process_choose(action)
