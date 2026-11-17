@@ -276,6 +276,11 @@ module Engine
 
         FACTION_INFLUENCE_LIMITS = { '2' => 6, '3' => 6, '4' => 6, '5' => 8, '6' => 8, 'D' => 10 }.freeze
 
+        PHASE_INFLUENCE_LIMITS = {
+          '◆ Corp Limit' => CORPORATION_INFLUENCE_LIMITS,
+          '◆ Faction Limit' => FACTION_INFLUENCE_LIMITS,
+        }.freeze
+
         TURMOIL_INFLUENCE_LEVEL = 2
 
         TURMOIL_FAVOR_LEVEL = 3
@@ -1608,6 +1613,14 @@ module Engine
 
         def opposite_faction(faction_sym)
           self.class::OPPOSITES[faction_sym]
+        end
+
+        def phase_extra_columns
+          self.class::PHASE_INFLUENCE_LIMITS.keys
+        end
+
+        def phase_extra_value(phase, column)
+          self.class::PHASE_INFLUENCE_LIMITS[column][phase[:name]]
         end
 
         def spreadsheet_extra_columns

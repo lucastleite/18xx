@@ -3349,6 +3349,12 @@ module Engine
 
       def corporation_size_name(_entity); end
 
+      def phase_extra_columns
+        []
+      end
+
+      def phase_extra_value(_phase, _column); end
+
       def spreadsheet_extra_columns
         []
       end
