@@ -765,6 +765,10 @@ module Engine
           super(factions) + super(others)
         end
 
+        def show_market_row?(corporation)
+          corporation.type != :faction
+        end
+
         def player_shares_sort(player, shares_by_corporation)
           factions, others = shares_by_corporation.partition { |c, _| c.type == :faction }
           super(player, factions) + super(player, others)

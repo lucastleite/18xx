@@ -54,6 +54,13 @@ module Engine
           end
         end
 
+        it 'shows the Market row only on the Corporation charters' do
+          game = new_game(3)
+
+          expect(game.show_market_row?(game.corporation_by_id('GUA'))).to be(false)
+          expect(game.show_market_row?(game.corporation_by_id('SP'))).to be(true)
+        end
+
         it 'lists the Factions before the Corporations on the player card' do
           game = Engine::Game.load(JSON.parse(File.read('spec/fixtures/frost_1831/hs_fqaxxsno_1794865941.json')), at_action: 300)
           player = game.players.find { |p| p.name == 'Player 2' }
