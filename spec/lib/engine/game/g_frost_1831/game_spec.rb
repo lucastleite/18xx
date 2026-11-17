@@ -15,6 +15,10 @@ module Engine
           expect(Meta::GAME_ALIASES).to eq(['1831'])
         end
 
+        it 'adds the Parliament tab' do
+          expect(new_game(3).extra_game_tabs.map { |tab| tab[:anchor] }).to eq(['parliament'])
+        end
+
         it 'plays with 2 to 5 players' do
           expect(Meta::PLAYER_RANGE).to eq([2, 5])
         end
