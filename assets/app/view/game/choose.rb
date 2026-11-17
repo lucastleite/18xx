@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
+require 'lib/settings'
 require 'view/game/actionable'
 
 module View
   module Game
     class Choose < Snabberb::Component
       include Actionable
+      include Lib::Settings
 
       needs :entity, default: nil
 
@@ -27,6 +29,8 @@ module View
 
         return render_choice_amount(choices) if choice_is_amount
 
+        logo_choices = step.respond_to?(:logo_choices?) && step.logo_choices?
+
         choice_buttons = choices.map do |choice, label|
           label ||= choice
           process_choose = lambda do
@@ -43,6 +47,10 @@ module View
             else
               choose.call
             end
+          end
+
+          if logo_choices && (corporation = @game.corporation_by_id(choice))
+            next render_logo_choice(corporation, label, process_choose)
           end
 
           props = {
@@ -82,6 +90,19 @@ module View
 
       def render_intervention_map
         h(Map, game: @game)
+      end
+
+      def render_logo_choice(corporation, label, process_choose)
+        h(:img, {
+            attrs: {
+              src: setting_for(:simple_logos, @game) ? corporation.simple_logo : corporation.logo,
+              title: label,
+              width: '48',
+              height: '48',
+            },
+            style: { cursor: 'pointer', marginRight: '0.5rem' },
+            on: { click: process_choose },
+          })
       end
 
       def render_choice_amount(amounts)

@@ -8,7 +8,7 @@ TEST_CASES = [
    314,
    [[6, 'stock_round', 'Pass (Share)'],
     [13, 'float', 'KO receives ¥700'],
-    [21, 'lay_track', '1889: Phase 2 - Operating Round 1.1 (of 1) - Lay/Upgrade Track'],
+    [21, 'lay_track', ['1889: Phase 2 - Operating Round 1.1 (of 1) - Lay/Upgrade Track', '!!min-content']],
     [23, 'buy_train',
      ['KO must buy an available train',
       '!!Player 1 must contribute']],
@@ -675,6 +675,15 @@ describe 'Assets' do
           game.process_action(frost_bot_action(game, step, entity, step.actions(entity), neutral: neutral))
         end
         expect(game.round.active_step).to be_an_instance_of(step_class)
+      end
+
+      it 'shows the Faction choices as logos and widens the Operating Round column for the Influence Arena' do
+        data = JSON.parse(File.read('spec/fixtures/frost_1831/hs_fqaxxsno_1794865941.json'))
+
+        render_game_at_action(data.dup, 22, ['title="Technicians (2)" width="48"', 'title="Expansionists (2)" width="48"'])
+        render_game_at_action(data.dup, 43, ['title="Technicians" width="48"', 'min-width: min-content',
+                                             '!!>Technicians</button>'])
+        render_game_at_action(data.dup, 250, ['CM → Guardians</button>', 'min-width: min-content'])
       end
 
       def render_frost(game, tab = '', optional_rules: [])

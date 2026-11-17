@@ -39,6 +39,10 @@ module Engine
             :faction_support
           end
 
+          def logo_choices?
+            true
+          end
+
           def description
             'Choose Faction to Support'
           end

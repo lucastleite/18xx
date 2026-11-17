@@ -37,6 +37,10 @@ module Engine
             :influence_arena
           end
 
+          def logo_choices?
+            true
+          end
+
           def description
             'Choose Faction for Influence'
           end
