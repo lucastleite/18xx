@@ -701,6 +701,18 @@ describe 'Assets' do
         expect(html).to match(/>LOR\*<.*?>GUA<.*?>HF\*<.*?>GUA\*<.*?>LOR<.*?>OE\*</m)
       end
 
+      it 'shows no Market row on the Faction charters' do
+        data = JSON.parse(File.read('spec/fixtures/frost1831/hs_fqaxxsno_1794865941.json'))
+        data['actions'] = data['actions'].take(300)
+        data[:loaded] = true
+        html = render(app_route: "/game/#{data['id']}", game_data: data, user: data['user'].merge(settings: { consent: true }))
+
+        expect(html.scan(%r{<tr class="ipo" style="border-bottom: 1px solid currentColor"><td class="left">Parliament</td>}).size)
+          .to eq(2)
+        expect(html).not_to match(%r{>Parliament</td>(?:(?!</tr>).)*</tr><tr class="market"})
+        expect(html).to include('<td class="left">Market</td>')
+      end
+
       def render_frost(game, tab = '', optional_rules: [])
         player = game.active_players.first
         player = player.owner unless player.player?

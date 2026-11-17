@@ -3665,6 +3665,10 @@ module Engine
         companies
       end
 
+      def show_market_row?(_corporation)
+        true
+      end
+
       def player_shares_sort(player, shares_by_corporation)
         shares_by_corporation
           .sort_by { |c, s| [s.sum(&:percent), c.president?(player) ? 1 : 0, c.name] }
