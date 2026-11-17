@@ -22,6 +22,8 @@ module View
 
         case @layout
         when :discarded_trains
+          return '' unless bank_pool?
+
           @depot.discarded.empty? ? 'No Trains in Bank Pool' : discarded_trains
         when :upcoming_trains
           @game.train_power? ? power_summary : h(TrainSchedule, game: @game)
@@ -35,7 +37,7 @@ module View
           children = []
         else
           children = @game.train_power? ? power : trains
-          children.concat(discarded_trains)
+          children.concat(discarded_trains) if bank_pool?
         end
         if @game.phase_valid?
           children.concat(phases)
@@ -92,6 +94,7 @@ module View
             h(:td, @game.info_on_trains(phase)),
             h(:td, phase[:operating_rounds]),
             h(:td, train_limit_to_h(phase[:train_limit])),
+            *@game.phase_extra_columns.map { |column| h(:td, @game.phase_extra_value(phase, column)) },
             h(:td, phase_props, phase_color.capitalize),
             *extra,
           ])
@@ -128,6 +131,7 @@ module View
                   h(:th, { attrs: { title: "Number of #{@game.operation_round_name} Rounds" } },
                     @game.operation_round_short_name),
                   h(:th, @game.train_limit_header),
+                  *@game.phase_extra_columns.map { |column| h(:th, column) },
                   h(:th, 'Tiles'),
                   *extra,
                 ]),
@@ -355,6 +359,10 @@ module View
           trains.first.names_to_prices.keys.size
         end.max
         max_size == 1 ? '.right' : ''
+      end
+
+      def bank_pool?
+        !@depot.discarded.empty? || @game.discarded_train_placement != :remove
       end
 
       def discarded_trains

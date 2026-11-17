@@ -382,7 +382,8 @@ describe 'Assets' do
       expect(render(app_route: '/game/1#entities', **needs)).to include('entities', 'Player 1', 'Awa Railroad')
       expect(render(app_route: '/game/1#map', **needs)).to include('Kotohira')
       expect(render(app_route: '/game/1#market', **needs)).to include('The Bank', 'Cash', 'Par value')
-      expect(render(app_route: '/game/1#info', **needs)).to include('Trains', 'Game Phases', 'Shikoku 1889')
+      expect(render(app_route: '/game/1#info', **needs)).to include('Trains', 'Game Phases', 'Shikoku 1889',
+                                                                    'Trains in Bank Pool')
       expect(render(app_route: '/game/1#tiles', **needs)).to include('492')
       expect(render(app_route: '/game/1#spreadsheet', **needs)).to include('Value')
       expect(render(app_route: '/game/1#tools', **needs)).to include('Clone Game')
@@ -760,7 +761,10 @@ describe 'Assets' do
 
         expect(render_frost(game, '#market')).to include('Main Supporter of the Governing Faction during Turmoil',
                                                          'Faction Favor, sending Influence')
-        expect(render_frost(game, '#info')).to include('Parliament Opens', 'Turmoil', 'Blizzard')
+        info = render_frost(game, '#info')
+        expect(info).to include('Parliament Opens', 'Turmoil', 'Blizzard', '◆ Corp Limit', '◆ Faction Limit')
+        expect(info).not_to include('Trains in Bank Pool')
+        expect(render_frost(game, '#spreadsheet')).not_to include('No Trains in Bank Pool')
       end
 
       it 'renders the Parliament tab' do
