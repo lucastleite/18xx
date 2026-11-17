@@ -19,6 +19,33 @@ module Engine
           expect(new_game(3).extra_game_tabs.map { |tab| tab[:anchor] }).to eq(['parliament'])
         end
 
+        describe 'spreadsheet' do
+          let(:game) do
+            Engine::Game.load(JSON.parse(File.read('spec/fixtures/frost_1831/hs_fqaxxsno_1794865941.json')), at_action: 300)
+          end
+
+          def row(id)
+            corporation = game.corporation_by_id(id)
+            game.spreadsheet_extra_columns.map { |column| game.spreadsheet_extra_value(corporation, column) }
+          end
+
+          def sorted(column)
+            game.all_corporations.sort_by { |c| game.spreadsheet_extra_sort_value(c, column) }.reverse.map(&:id)
+          end
+
+          it 'adds the Favors column and one Influence column per Faction' do
+            expect(game.spreadsheet_extra_columns).to eq(%w[Favors TEC LOR GUA EXP])
+            expect(row('SP')).to eq(['1/5', '', '', '4/5', '4/5'])
+            expect(row('OE')).to eq(['0/5', '2/5', '3/5', '', ''])
+            expect(row('GUA')).to eq(['4/5', '', '', '5/8', ''])
+          end
+
+          it 'sorts a Faction column with the Faction first, then its supporters by Influence' do
+            expect(sorted('GUA').first(4)).to eq(%w[GUA SP CM EC])
+            expect(sorted('Favors').first(2)).to eq(%w[EXP LOR])
+          end
+        end
+
         it 'plays with 2 to 5 players' do
           expect(Meta::PLAYER_RANGE).to eq([2, 5])
         end

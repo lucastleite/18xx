@@ -318,6 +318,7 @@ module Engine
         MAX_FAVORS = 5
 
         FAVOR_AMOUNT = 100
+        FAVORS_COLUMN = 'Favors'
 
         FAVOR_PENALTY_WITH_INFLUENCE = [2, 2, 3].freeze
 
@@ -1607,6 +1608,38 @@ module Engine
 
         def opposite_faction(faction_sym)
           self.class::OPPOSITES[faction_sym]
+        end
+
+        def spreadsheet_extra_columns
+          [self.class::FAVORS_COLUMN, *faction_order]
+        end
+
+        def spreadsheet_extra_value(corporation, column)
+          faction = corporation.type == :faction
+          if column == self.class::FAVORS_COLUMN
+            return "#{faction ? favors_available(corporation) : favors_used(corporation)}/#{self.class::MAX_FAVORS}"
+          end
+          return (corporation.id == column ? "#{faction_influence(column)}/#{faction_influence_limit}" : '') if faction
+
+          influence = corporation_influence_for(corporation, column)
+          return '' if influence.zero? && !corporation_factions(corporation).include?(column)
+
+          "#{influence}/#{corporation_influence_limit}"
+        end
+
+        def spreadsheet_extra_sort_value(corporation, column)
+          faction = corporation.type == :faction
+          return faction ? favors_available(corporation) : favors_used(corporation) if column == self.class::FAVORS_COLUMN
+          return [2, 0, 0] if corporation.id == column
+
+          order = operating_order.index(corporation) || operating_order.size
+          return [1, corporation_influence_for(corporation, column), -order] if corporation_factions(corporation).include?(column)
+
+          [0, -order, 0]
+        end
+
+        def favors_available(faction)
+          (faction.cash.to_f / self.class::FAVOR_AMOUNT).floor
         end
 
         def faction_display_name(faction_sym)
