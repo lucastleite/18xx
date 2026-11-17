@@ -55,6 +55,7 @@ module Engine
           expect(step).to be_a(GFrost1831::Step::FirstOperatingFaction)
           expect(game.active_players).to eq([game.players.first])
           expect(step.choices).to eq('TEC' => 'Technicians', 'GUA' => 'Guardians', 'EXP' => 'Expansionists')
+          expect(step.logo_choices?).to be(true)
           expect(game.round.current_operator).to be_nil
 
           choose(exp)

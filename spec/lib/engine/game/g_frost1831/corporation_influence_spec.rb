@@ -36,6 +36,7 @@ module Engine
           expect(game.round.active_step.ipo_type(cm)).to be_nil
           expect(game.round.active_step.choices.keys).to eq(%w[TEC LOR])
           expect(game.round.active_step.choice_views.map(&:first)).to eq(['GFrost1831::InfluenceArena'])
+          expect(game.round.active_step.logo_choices?).to be(true)
           expect(hex.tile.icons.map(&:name)).not_to include('influence_cube')
 
           choose('LOR')

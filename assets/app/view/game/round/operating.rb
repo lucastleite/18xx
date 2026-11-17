@@ -155,6 +155,7 @@ module View
               verticalAlign: 'top',
             },
           }
+          left_props[:style][:minWidth] = 'min-content' if @current_actions.include?('choose') && @step.respond_to?(:choice_views)
 
           right_props = {
             style: {

@@ -37,6 +37,10 @@ module Engine
             [['GFrost1831::InfluenceArena', { game: @game, scale: 0.67 }]]
           end
 
+          def logo_choices?
+            true
+          end
+
           def description
             'Choose Faction for Influence'
           end

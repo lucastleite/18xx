@@ -13,6 +13,7 @@ module View
         BASE_CELL_SIZE = 45
         BASE_BORDER_WIDTH = 3
         BASE_PANEL_WIDTH = 130
+        MIN_PANEL_WIDTH = 96
 
         ARENA_COLORS = {
           exp_3: '#e8940a',
@@ -36,7 +37,7 @@ module View
 
           cell_size = (BASE_CELL_SIZE * @scale).to_i
           border_width = (@scale < 0.8 ? 2 : BASE_BORDER_WIDTH)
-          panel_width = (BASE_PANEL_WIDTH * @scale).to_i
+          panel_width = [(BASE_PANEL_WIDTH * @scale).to_i, MIN_PANEL_WIDTH].max
 
           grid_width = 8 * cell_size
           grid_height = 8 * cell_size

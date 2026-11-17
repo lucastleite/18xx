@@ -38,4 +38,39 @@ describe View::Game::Choose do
       end
     end
   end
+
+  context 'when the step offers logo choices' do
+    let(:game) { Engine::Game::GFrost1831::Game.new(%w[a b c], id: 1) }
+    let(:step) do
+      double('Step', choices: { 'TEC' => 'Technicians (2)', 'pass' => 'Pass' }, choice_name: 'Pick', logo_choices?: true,
+                     current_entity: game.players.first)
+    end
+    let(:component) { described_class.new(nil, game: game) }
+    let(:nodes) { [] }
+
+    before do
+      allow(game.round).to receive(:active_step).and_return(step)
+      allow(component).to receive(:h) do |tag, props = {}, children = nil|
+        nodes << [tag, props, children]
+        [tag, props, children]
+      end
+      allow(component).to receive(:setting_for).and_return(false)
+      allow(component).to receive(:process_action)
+    end
+
+    it 'shows the logo of each Corporation choice and submits the clicked one' do
+      component.render
+
+      logos = nodes.select { |tag, _, _| tag == :img }
+      expect(logos.map { |_, props, _| props[:attrs].slice(:src, :title) })
+        .to eq([{ src: game.corporation_by_id('TEC').logo, title: 'Technicians (2)' }])
+      expect(nodes.select { |tag, _, _| tag == 'button' }.map(&:last)).to eq(['Pass'])
+
+      logos.first[1][:on][:click].call
+
+      expect(component).to have_received(:process_action) do |action|
+        expect(action.choice).to eq('TEC')
+      end
+    end
+  end
 end
