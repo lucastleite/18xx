@@ -701,7 +701,7 @@ describe 'Assets' do
 
         expect(render_frost(game)).to include('New Grand Junction is being intervened.',
                                               'Choose which faction between Guardians and Expansionists receives the station.',
-                                              'Click a highlighted hex on the map.', 'map-hexes')
+                                              'map-hexes')
       end
 
       it 'renders the choice of the first Faction to operate' do

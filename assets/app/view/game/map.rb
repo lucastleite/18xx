@@ -2,8 +2,10 @@
 
 require '../lib/storage'
 require '../lib/settings'
+require 'lib/hex_choice_selector'
 require 'view/game/axis'
 require 'view/game/hex'
+require 'view/game/hex_choice_selector'
 require 'view/game/map_legend'
 require 'view/game/sea_crossings'
 require 'view/game/tile_confirmation'
@@ -92,6 +94,8 @@ module View
             if @tile_selector.is_a?(Lib::TokenSelector)
               # 1882
               h(TokenSelector, zoom: map_zoom)
+            elsif @tile_selector.is_a?(Lib::HexChoiceSelector)
+              h(HexChoiceSelector, zoom: map_zoom)
             elsif @tile_selector.role != :map
               # Tile selector not for the map
             elsif @tile_selector.hex.tile != @tile_selector.tile

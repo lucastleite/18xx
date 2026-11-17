@@ -59,7 +59,7 @@ module Engine
           end
 
           def choice_views
-            [['GFrost1831::InterventionChoice', { game: @game }]]
+            @round.stock? ? [['Map', { game: @game }]] : []
           end
 
           def process_choose(action)
